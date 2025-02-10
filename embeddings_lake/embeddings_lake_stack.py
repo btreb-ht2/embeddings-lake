@@ -61,3 +61,13 @@ class EmbeddingsLakeStack(Stack):
             code=lambda_.Code.from_asset("embeddings_lake/assets/lambda/embedder"),
             layers=[lambda_layer_pandas, lambda_layer_pydantic]
         )
+
+        lambda_InstantiateLake = lambda_.Function(
+            self,
+            "FunctionInstantiateLake",
+            runtime=lambda_.Runtime.PYTHON_3_10,
+            handler="index.lambda_handler",
+            code=lambda_.Code.from_asset("embeddings_lake/assets/lambda/laker"),
+            environment={"BUCKET_NAME": bucket.bucket_name },
+            layers=[lambda_layer_pandas, lambda_layer_pydantic]
+        )
