@@ -71,3 +71,13 @@ class EmbeddingsLakeStack(Stack):
             environment={"BUCKET_NAME": bucket.bucket_name },
             layers=[lambda_layer_pandas, lambda_layer_pydantic]
         )
+
+        lambda_HashVector = lambda_.Function(
+            self,
+            "FunctionHashVector",
+            runtime=lambda_.Runtime.PYTHON_3_10,
+            handler="index.lambda_handler",
+            code=lambda_.Code.from_asset("embeddings_lake/assets/lambda/hasher"),
+            environment={"BUCKET_NAME": bucket.bucket_name },
+            layers=[lambda_layer_pandas, lambda_layer_pydantic]
+        )
