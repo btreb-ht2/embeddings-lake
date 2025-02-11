@@ -62,7 +62,7 @@ class EmbeddingsLakeStack(Stack):
             layers=[lambda_layer_pandas, lambda_layer_pydantic]
         )
 
-        lambda_InstantiateLake = lambda_.Function(
+        lambda_lake_instantiate = lambda_.Function(
             self,
             "FunctionInstantiateLake",
             runtime=lambda_.Runtime.PYTHON_3_10,
@@ -72,12 +72,22 @@ class EmbeddingsLakeStack(Stack):
             layers=[lambda_layer_pandas, lambda_layer_pydantic]
         )
 
-        lambda_HashVector = lambda_.Function(
+        lambda_embedding_hash = lambda_.Function(
             self,
             "FunctionHashVector",
             runtime=lambda_.Runtime.PYTHON_3_10,
             handler="index.lambda_handler",
             code=lambda_.Code.from_asset("embeddings_lake/assets/lambda/hasher"),
+            environment={"BUCKET_NAME": bucket.bucket_name },
+            layers=[lambda_layer_pandas, lambda_layer_pydantic]
+        )
+
+        lambda_embedding_add = lambda_.Function(
+            self,
+            "FunctionEmbeddingAdd",
+            runtime=lambda_.Runtime.PYTHON_3_10,
+            handler="index.lambda_handler",
+            code=lambda_.Code.from_asset("embeddings_lake/assets/lambda/adder"),
             environment={"BUCKET_NAME": bucket.bucket_name },
             layers=[lambda_layer_pandas, lambda_layer_pydantic]
         )
