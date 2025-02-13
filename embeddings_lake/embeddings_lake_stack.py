@@ -91,3 +91,13 @@ class EmbeddingsLakeStack(Stack):
             environment={"BUCKET_NAME": bucket.bucket_name },
             layers=[lambda_layer_pandas, lambda_layer_pydantic]
         )
+
+        lambda_embedding_query = lambda_.Function(
+            self,
+            "FunctionEmbeddingQuery",
+            runtime=lambda_.Runtime.PYTHON_3_10,
+            handler="index.lambda_handler",
+            code=lambda_.Code.from_asset("embeddings_lake/assets/lambda/query"),
+            environment={"BUCKET_NAME": bucket.bucket_name },
+            layers=[lambda_layer_pandas, lambda_layer_pydantic]
+        )
