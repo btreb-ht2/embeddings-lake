@@ -3,6 +3,8 @@ from aws_cdk import (
     Stack,
     aws_s3 as s3,
     aws_lambda as lambda_,
+    aws_stepfunctions_tasks as tasks,
+    aws_stepfunctions as sfn,
     BundlingOptions
 )
 from constructs import Construct
@@ -100,4 +102,46 @@ class EmbeddingsLakeStack(Stack):
             code=lambda_.Code.from_asset("embeddings_lake/assets/lambda/query"),
             environment={"BUCKET_NAME": bucket.bucket_name },
             layers=[lambda_layer_pandas, lambda_layer_pydantic]
+        )
+
+        task_embedding_hash = tasks.LambdaInvoke(
+            self,
+            "Hash Embedding",
+            lambda_function=lambda_embedding_hash
+        )
+
+        task_embedding_add = tasks.LambdaInvoke(
+            self,
+            "Add Embedding",
+            lambda_function=lambda_embedding_add,
+        )
+
+        task_embedding_query = tasks.LambdaInvoke(
+            self,
+            "Query Embedding", 
+            lambda_function=lambda_embedding_query
+        )
+
+        choice_embedding = sfn.Choice(
+            self,
+            "Embedding Choice"
+        )
+
+        choice_embedding.when(
+            condition=sfn.Condition.boolean_equals(variable="$.add", value=True),
+            next=task_embedding_add
+        )
+
+        choice_embedding.when(
+            condition=sfn.Condition.boolean_equals(variable="$.add", value=False),
+            next=task_embedding_query
+        )       
+
+        task_embedding_hash.next(choice_embedding)
+
+
+        state_machine_embedding = sfn.StateMachine(
+            self,
+            "Embeddings Lake State Machine",
+            definition=task_embedding_hash
         )
