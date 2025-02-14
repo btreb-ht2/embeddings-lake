@@ -5,6 +5,7 @@ from aws_cdk import (
     aws_lambda as lambda_,
     aws_stepfunctions_tasks as tasks,
     aws_stepfunctions as sfn,
+    aws_iam as iam,
     BundlingOptions
 )
 from constructs import Construct
@@ -14,8 +15,15 @@ class EmbeddingsLakeStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
-        bucket = s3.Bucket(
-            self, "EmbeddingsBucket",
+
+        lambda_endpoint = "lambda.amazonaws.com"
+
+        bucket_segments = s3.Bucket(
+            self, 
+            "BucketSegments",
+            encryption=s3.BucketEncryption(s3.BucketEncryption.S3_MANAGED),
+            object_ownership=s3.ObjectOwnership.BUCKET_OWNER_ENFORCED,
+            block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
         )
 
         # layer_bundling_command = (
@@ -64,14 +72,47 @@ class EmbeddingsLakeStack(Stack):
             layers=[lambda_layer_pandas, lambda_layer_pydantic]
         )
 
+        policy_lake_instantiate = iam.ManagedPolicy(
+            self,
+            "PolicyLambdaLakeInstantiation",
+            managed_policy_name="EmbeddingsLake_LambdaLakeInstation",
+            document=iam.PolicyDocument(
+                statements=[
+                    iam.PolicyStatement(
+                        effect=iam.Effect.ALLOW,
+                        actions=[
+                            "s3:PutObject"
+                        ],
+                        resources=[
+                            bucket_segments.bucket_arn,
+                            bucket_segments.arn_for_objects("*"),
+                        ],
+                    )
+                ]
+            )
+        )
+
+
+        role_lambda_lake_instantiate = iam.Role(
+            self,
+            "RoleLambdaLakeInstantiation",
+            assumed_by=iam.ServicePrincipal(lambda_endpoint),
+            role_name="EmbeddingsLake_Role_lambda_Lake_Instantiation",
+            managed_policies=[
+                policy_lake_instantiate,
+                ]
+            
+        )
+
         lambda_lake_instantiate = lambda_.Function(
             self,
             "FunctionInstantiateLake",
             runtime=lambda_.Runtime.PYTHON_3_10,
             handler="index.lambda_handler",
             code=lambda_.Code.from_asset("embeddings_lake/assets/lambda/laker"),
-            environment={"BUCKET_NAME": bucket.bucket_name },
-            layers=[lambda_layer_pandas, lambda_layer_pydantic]
+            environment={"BUCKET_NAME": bucket_segments.bucket_name },
+            layers=[lambda_layer_pandas, lambda_layer_pydantic],
+            role=role_lambda_lake_instantiate
         )
 
         lambda_embedding_hash = lambda_.Function(
@@ -80,7 +121,7 @@ class EmbeddingsLakeStack(Stack):
             runtime=lambda_.Runtime.PYTHON_3_10,
             handler="index.lambda_handler",
             code=lambda_.Code.from_asset("embeddings_lake/assets/lambda/hasher"),
-            environment={"BUCKET_NAME": bucket.bucket_name },
+            environment={"BUCKET_NAME": bucket_segments.bucket_name },
             layers=[lambda_layer_pandas, lambda_layer_pydantic]
         )
 
@@ -90,7 +131,7 @@ class EmbeddingsLakeStack(Stack):
             runtime=lambda_.Runtime.PYTHON_3_10,
             handler="index.lambda_handler",
             code=lambda_.Code.from_asset("embeddings_lake/assets/lambda/adder"),
-            environment={"BUCKET_NAME": bucket.bucket_name },
+            environment={"BUCKET_NAME": bucket_segments.bucket_name },
             layers=[lambda_layer_pandas, lambda_layer_pydantic]
         )
 
@@ -100,7 +141,7 @@ class EmbeddingsLakeStack(Stack):
             runtime=lambda_.Runtime.PYTHON_3_10,
             handler="index.lambda_handler",
             code=lambda_.Code.from_asset("embeddings_lake/assets/lambda/query"),
-            environment={"BUCKET_NAME": bucket.bucket_name },
+            environment={"BUCKET_NAME": bucket_segments.bucket_name },
             layers=[lambda_layer_pandas, lambda_layer_pydantic]
         )
 
