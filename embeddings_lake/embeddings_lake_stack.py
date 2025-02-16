@@ -92,6 +92,26 @@ class EmbeddingsLakeStack(Stack):
             )
         )
 
+        policy_embedding_hash = iam.ManagedPolicy(
+            self,
+            "PolicyLambdaEmbeddingHash",
+            managed_policy_name="EmbeddingsLake_LambdaEmbeddingHash",
+            document=iam.PolicyDocument(
+                statements=[
+                    iam.PolicyStatement(
+                        effect=iam.Effect.ALLOW,
+                        actions=[
+                            "s3:GetObject"
+                        ],
+                        resources=[
+                            bucket_segments.bucket_arn,
+                            bucket_segments.arn_for_objects("*"),
+                        ],
+                    )
+                ]
+            )
+        )
+
 
         role_lambda_lake_instantiate = iam.Role(
             self,
@@ -100,6 +120,17 @@ class EmbeddingsLakeStack(Stack):
             role_name="EmbeddingsLake_Role_lambda_Lake_Instantiation",
             managed_policies=[
                 policy_lake_instantiate,
+                ]
+            
+        )
+
+        role_lambda_embedding_hash = iam.Role(
+            self,
+            "RoleLambdaEmbeddingHash",
+            assumed_by=iam.ServicePrincipal(lambda_endpoint),
+            role_name="EmbeddingsLake_Role_lambda_Embedding_Hash",
+            managed_policies=[
+                policy_embedding_hash,
                 ]
             
         )
@@ -122,7 +153,8 @@ class EmbeddingsLakeStack(Stack):
             handler="index.lambda_handler",
             code=lambda_.Code.from_asset("embeddings_lake/assets/lambda/hasher"),
             environment={"BUCKET_NAME": bucket_segments.bucket_name },
-            layers=[lambda_layer_pandas, lambda_layer_pydantic]
+            layers=[lambda_layer_pandas, lambda_layer_pydantic],
+            role=role_lambda_embedding_hash
         )
 
         lambda_embedding_add = lambda_.Function(

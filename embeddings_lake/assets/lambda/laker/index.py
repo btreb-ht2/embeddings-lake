@@ -2,6 +2,8 @@ import os
 import tempfile
 from json import dump
 from boto3 import client as boto3_client
+from numpy import random as np_random
+from math import log as math_log
 
 
 s3_client = boto3_client("s3")
@@ -9,10 +11,25 @@ s3_client = boto3_client("s3")
 BUCKET_NAME = os.environ['BUCKET_NAME']
 
 
+class LSH:
+    def __init__(self, dim, num_hashes, bucket_size=100_000, random_seed=42):
+        """Initialize LSH object.
+
+        dim: Dimension of vectors
+        num_hashes: Number of hash functions (hyperplanes) to use
+        bucket_size: Size of hash buckets
+        """
+        self.dim = dim
+        self.num_hashes = num_hashes
+        self.bucket_size = bucket_size
+        np_random.seed(random_seed)
+        self.hyperplanes = np_random.randn(self.num_hashes, self.dim)
+
+
+
+
 
 def lambda_handler(event, context):
-
-
 
     file_name = 'lake_config.json' 
 
@@ -20,12 +37,14 @@ def lambda_handler(event, context):
     print(event['lake_name'])
     print(event['lake_dimensions'])
     print(event['lake_shards'])
-    print("hello world!")
+
+
+    lsh = LSH(event['lake_dimensions'], int(math_log(event['lake_shards'], 2) + 0.5))
 
 
     data = {"lake_name": event['lake_name'],
-            "lake_dimensions": event['lake_dimensions'],
-            "lake_shards": event['lake_shards']
+            "lake_dimensions": lsh.dim,
+            "lake_hyperplanes": lsh.hyperplanes.tolist()
             }
 
     with tempfile.NamedTemporaryFile(mode='w') as temporary_file:
