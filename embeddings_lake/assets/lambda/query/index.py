@@ -12,7 +12,7 @@ def lambda_handler(event, context):
     print(event)
 
     n_results: int = 4,
-    radius: int = 5
+    radius: int = 2
     embedding = event["Payload"]["embedding"]
     embedding_hash_index = event["Payload"]["embedding_hash_index"]
     num_shards = event["Payload"]["num_shards"]
@@ -20,10 +20,7 @@ def lambda_handler(event, context):
 
     segment_indices_to_search = get_adjacent_segments(embedding_hash_index, num_shards, radius)
 
-
     return { 
-        'statusCode': 200, 
-        'body': 'Complete',
-        'segment_indices': segment_indices_to_search,
+        'segmentIndices': list(map(str, segment_indices_to_search)),
         'embedding': embedding,
     }
