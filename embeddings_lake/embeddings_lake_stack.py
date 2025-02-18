@@ -177,6 +177,16 @@ class EmbeddingsLakeStack(Stack):
             layers=[lambda_layer_pandas, lambda_layer_pydantic]
         )
 
+        lambda_embedding_search = lambda_.Function(
+            self,
+            "FunctionEmbeddingSearch",
+            runtime=lambda_.Runtime.PYTHON_3_10,
+            handler="index.lambda_handler",
+            code=lambda_.Code.from_asset("embeddings_lake/assets/lambda/search"),
+            environment={"BUCKET_NAME": bucket_segments.bucket_name },
+            layers=[lambda_layer_pandas, lambda_layer_pydantic]
+        )
+
         task_embedding_hash = tasks.LambdaInvoke(
             self,
             "Hash Embedding",
@@ -195,6 +205,12 @@ class EmbeddingsLakeStack(Stack):
             lambda_function=lambda_embedding_query
         )
 
+        task_embedding_search = tasks.LambdaInvoke(
+            self,
+            "Search Segment",
+            lambda_function=lambda_embedding_search
+        )
+
         choice_embedding = sfn.Choice(
             self,
             "Embedding Choice"
@@ -205,17 +221,23 @@ class EmbeddingsLakeStack(Stack):
             next=task_embedding_add
         )
 
-        # choice_embedding.when(
-        #     condition=sfn.Condition.boolean_equals(variable="$.add", value=False),
-        #     next=task_embedding_query
-        # ) 
-
         choice_embedding.otherwise(
             task_embedding_query
         )      
 
         task_embedding_hash.next(choice_embedding)
 
+        map_search_segments = sfn.Map(self, "Search Segments",
+            max_concurrency=10,
+            #items_path=sfn.JsonPath.string_at("$$.Payload.segment_indices"),
+            #items_path=sfn.JsonPath.array
+            items_path="$.Payload.segmentIndices",
+            #result_path="$.mapOutput",
+        )
+
+        map_search_segments.item_processor(task_embedding_search)
+
+        task_embedding_query.next(map_search_segments)
 
         state_machine_embedding = sfn.StateMachine(
             self,
