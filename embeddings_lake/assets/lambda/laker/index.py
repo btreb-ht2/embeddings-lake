@@ -24,7 +24,10 @@ class LSH:
         self.bucket_size = bucket_size
         np_random.seed(random_seed)
         self.hyperplanes = np_random.randn(self.num_hashes, self.dim)
-
+    
+    @property
+    def max_partitions(self):
+        return 2**self.num_hashes
 
 
 
@@ -36,14 +39,16 @@ def lambda_handler(event, context):
     print(event)
     print(event['lake_name'])
     print(event['lake_dimensions'])
-    print(event['lake_shards'])
+    print(event['lake_aprox_shards'])
 
+    aprox_shards = event['lake_aprox_shards']
 
-    lsh = LSH(event['lake_dimensions'], int(math_log(event['lake_shards'], 2) + 0.5))
+    lsh = LSH(event['lake_dimensions'], int(math_log(aprox_shards, 2) + 0.5))
 
 
     data = {"lake_name": event['lake_name'],
             "lake_dimensions": lsh.dim,
+            "lake_shards": lsh.max_partitions,
             "lake_hyperplanes": lsh.hyperplanes.tolist()
             }
 

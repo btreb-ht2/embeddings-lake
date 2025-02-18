@@ -201,14 +201,18 @@ class EmbeddingsLakeStack(Stack):
         )
 
         choice_embedding.when(
-            condition=sfn.Condition.boolean_equals(variable="$.add", value=True),
+            condition=sfn.Condition.boolean_equals(variable="$.Payload.add", value=True),
             next=task_embedding_add
         )
 
-        choice_embedding.when(
-            condition=sfn.Condition.boolean_equals(variable="$.add", value=False),
-            next=task_embedding_query
-        )       
+        # choice_embedding.when(
+        #     condition=sfn.Condition.boolean_equals(variable="$.add", value=False),
+        #     next=task_embedding_query
+        # ) 
+
+        choice_embedding.otherwise(
+            task_embedding_query
+        )      
 
         task_embedding_hash.next(choice_embedding)
 

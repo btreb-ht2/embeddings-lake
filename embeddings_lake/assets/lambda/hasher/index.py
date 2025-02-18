@@ -52,6 +52,7 @@ def lambda_handler(event, context):
 
     dimension = lake_config["lake_dimensions"]
     hyperplanes = lake_config["lake_hyperplanes"]
+    num_shards = lake_config["lake_shards"]
 
     embedding = event['embedding']
 
@@ -71,6 +72,9 @@ def lambda_handler(event, context):
     print(f"shard index: {shard_index}")
     return { 
         'statusCode': 200, 
-        'body': 'File uploaded successfully.',
-        'shard_index': shard_index
+        'body': 'Success',
+        'embedding': embedding,
+        'embedding_hash_index': shard_index,
+        'num_shards': num_shards,
+        'add': False
     }
