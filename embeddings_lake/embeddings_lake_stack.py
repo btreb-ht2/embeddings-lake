@@ -5,6 +5,7 @@ from aws_cdk import (
     aws_lambda as lambda_,
     aws_stepfunctions_tasks as tasks,
     aws_stepfunctions as sfn,
+    aws_apigateway as apigateway,
     aws_iam as iam,
     BundlingOptions
 )
@@ -243,4 +244,25 @@ class EmbeddingsLakeStack(Stack):
             self,
             "Embeddings Lake State Machine",
             definition=task_embedding_hash
+        )
+
+        api = apigateway.RestApi(
+            self,
+            "API Gateway",
+            deploy_options=apigateway.StageOptions(
+                stage_name="prod"
+            )
+        )
+
+        api_resource_lake = api.root.add_resource("lake")
+
+        api_resource_lake_embedding = api_resource_lake.add_resource("embedding")
+
+        api_resource_lake.add_method(
+            "PUT",
+            apigateway.LambdaIntegration(
+                handler = lambda_lake_instantiate,
+                proxy=True,
+                ),
+
         )
