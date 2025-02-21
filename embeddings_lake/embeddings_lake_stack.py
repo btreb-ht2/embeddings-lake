@@ -93,6 +93,26 @@ class EmbeddingsLakeStack(Stack):
             )
         )
 
+        policy_embedding_add = iam.ManagedPolicy(
+            self,
+            "PolicyLambdaEmbeddingAdd",
+            managed_policy_name="EmbeddingsLake_LambdaEmbeddingAdd",
+            document=iam.PolicyDocument(
+                statements=[
+                    iam.PolicyStatement(
+                        effect=iam.Effect.ALLOW,
+                        actions=[
+                            "s3:PutObject"
+                        ],
+                        resources=[
+                            bucket_segments.bucket_arn,
+                            bucket_segments.arn_for_objects("*"),
+                        ],
+                    )
+                ]
+            )
+        )
+
         policy_embedding_hash = iam.ManagedPolicy(
             self,
             "PolicyLambdaEmbeddingHash",
@@ -136,6 +156,17 @@ class EmbeddingsLakeStack(Stack):
             
         )
 
+        role_lambda_embedding_add = iam.Role(
+            self,
+            "RoleLambdaEmbeddingAdd",
+            assumed_by=iam.ServicePrincipal(lambda_endpoint),
+            role_name="EmbeddingsLake_Role_lambda_Embedding_Add",
+            managed_policies=[
+                policy_embedding_add,
+                ]
+            
+        )
+
         lambda_lake_instantiate = lambda_.Function(
             self,
             "FunctionInstantiateLake",
@@ -162,10 +193,12 @@ class EmbeddingsLakeStack(Stack):
             self,
             "FunctionEmbeddingAdd",
             runtime=lambda_.Runtime.PYTHON_3_10,
+            memory_size=256,
             handler="index.lambda_handler",
             code=lambda_.Code.from_asset("embeddings_lake/assets/lambda/adder"),
             environment={"BUCKET_NAME": bucket_segments.bucket_name },
-            layers=[lambda_layer_pandas, lambda_layer_pydantic]
+            layers=[lambda_layer_pandas, lambda_layer_pydantic],
+            role=role_lambda_embedding_add
         )
 
         lambda_embedding_query = lambda_.Function(

@@ -1,16 +1,30 @@
-from heapq import heapify, heappop, heappush, heapreplace, nlargest, nsmallest
-from typing import Any
 import os
-import pandas as pd
 import uuid
-import datetime
-from json import dumps
-from pydantic import BaseModel
 import pytz
+import math
+import logging
+import datetime
 import numpy as np
+import pandas as pd
 from math import log2
+from json import dumps
+from typing import Any
 from random import random
+from pydantic import BaseModel
 from operator import itemgetter
+from heapq import heapify, heappop, heappush, heapreplace, nlargest, nsmallest
+
+
+try:
+    import boto3
+except ImportError:
+    boto3 = object()
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.DEBUG)
+
+BUCKET_NAME = os.environ['BUCKET_NAME']
+
 
 DISTANCE_L2 = "l2"
 DISTANCE_COSINE = "cosine"
@@ -311,27 +325,8 @@ class HNSW:
                 yield from g[idx].items()
             except KeyError:
                 return
-            
 
 class LazyBucket(BaseModel):
-    """This class is a representation of a "lazy" data bucket for a distributed
-    search system. The lazy loading technique is used to defer initialization
-    of an object until the point at which it is needed.
-
-    Attributes:
-        db_location (str): The path to the location where the bucket data is stored.
-        segment_index (int): The index of the current segment. This index is used to name the bucket file.
-        bucket_name (str, optional): The name of the parquet file where the bucket data is stored.
-                                     The segment index will be inserted in place of '{}'. Defaults to "segment-{}.parquet".
-        metadata_name (str, optional): The name of the json file where the metadata associated with the bucket is stored.
-                                        The segment index will be inserted in place of '{}'. Defaults to "segment-{}-metadata.json".
-        loaded (bool, optional): A flag that indicates whether the bucket has been loaded. Defaults to False.
-        dirty (bool, optional): A flag that indicates whether there are unsaved changes in the bucket. Defaults to False.
-        frame (pandas.DataFrame | None, optional): The pandas DataFrame that contains the data of the bucket. Defaults to None.
-        frame_schema (list[str], optional): The schema of the DataFrame. Defaults to ["id", "vector", "metadata", "document", "timestamp"].
-        vectors (list): A list to store vectors from the DataFrame for easy access and manipulation. Defaults to an empty list.
-        dirty_rows (list): A list to store new rows that haven't been added to the DataFrame yet. Defaults to an empty list.
-    """
 
     db_location: str
     segment_index: str
@@ -373,43 +368,34 @@ class LazyBucket(BaseModel):
             self.attrs = self.frame.attrs
         if list(self.frame.columns) != self.frame_schema:
             raise ValueError(f"Invalid frame_schema {self.frame.columns=}")
+        
         self.loaded = True
-        self.vectors = self.frame["vector"].tolist()
-        self.dirty_rows = self.frame.to_dict("records")
-        for v in self.vectors:
+        for v in self.frame["vector"].tolist():
             self.hnsw.add(v)
 
     def append(self, vector: np.ndarray, **attrs):
         if not self.loaded:
             self._lazy_load()
+
         uid = uuid.uuid1().urn
+
         document = {
             "id": uid,
-            "vector": vector,
+            "vector": vector.tolist(),
             "metadata": attrs.get("metadata", {"name": "unknown"}),
             "document": attrs.get("document", ""),
-            "timestamp": attrs.get("timestamp", datetime.datetime.now(pytz.UTC)),
+            "timestamp": attrs.get("timestamp", datetime.datetime.now(pytz.UTC).strftime("%Y-%m-%d %H:%M:%S %Z")),
         }
-
-        self.dirty_rows.append(document)
-        self.dirty = True
-        self.vectors.append(vector)
+        self.frame = self.frame._append(document, ignore_index=True)
         self.hnsw.add(vector)
-        return uid
+        self.dirty = True
 
-    def search(self, vector: np.ndarray, k: int = 4):
-        self._lazy_load()
-        try:
-            results = self.hnsw.search(vector, k)
-        except ValueError:  # Empty graph
-            return []
-        return results
+        return uid
 
     def sync(self, **attrs):
         if not self.dirty:
             return
 
-        self.frame = self.frame._append(self.dirty_rows, ignore_index=True)
         if self.frame.empty:
             return
         # TODO: eval last sync time
@@ -423,6 +409,21 @@ class LazyBucket(BaseModel):
         self.frame.to_parquet(self.frame_location, engine='pyarrow', compression="gzip")
         self.dirty = False
 
+    def delete(self):
+        """This function deletes a file if it exists at a specified location.
+
+        :return: If the file specified by `self.frame_location` does not exist, the function returns nothing
+        (i.e., `None`). If the file exists and is successfully deleted, the function also returns nothing.
+        If an exception occurs during the deletion process, the function catches the exception and does not
+        re-raise it, so it also returns nothing.
+        """
+        if not os.path.exists(self.frame_location):
+            return
+        try:
+            os.remove(self.frame_location)
+        except Exception:
+            ...
+
     def __len__(self):
         if not self.loaded:
             self._lazy_load()
@@ -431,6 +432,117 @@ class LazyBucket(BaseModel):
     def memory_footprint(self):
         return self.frame.memory_usage(deep=True).sum()
 
+    def delete_local(self):
+        return self.delete()
+
+    def delete_remote(self):
+        return ...
+
+
+class S3Bucket(LazyBucket):
+    remote_location: str = ""
+    bytes_transferred: int = 0
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        #self.remote_location = self.db_location.strip("s3://")
+        self.remote_location = BUCKET_NAME
+        self.db_location = self.local_storage
+
+    @property
+    def local_storage(self):
+        db_location = self.db_location.replace("://", "_")
+        return f"/tmp/embeddings_lake_{db_location}"
+
+    @property
+    def s3_client(self):
+        # endpoint_url = os.environ.get("LOCALSTACK_ENDPOINT_URL")
+
+        # if endpoint_url:
+        #     return boto3.client("s3", endpoint_url=endpoint_url)
+        # else:
+        #     aws_access_key_id = os.environ.get("AWS_ACCESS_KEY_ID")
+        #     aws_secret_access_key = os.environ.get("AWS_SECRET_ACCESS_KEY")
+        #     aws_region = os.environ.get("AWS_DEFAULT_REGION")
+
+        #     if not all([aws_access_key_id, aws_secret_access_key, aws_region]):
+        #         raise Exception(
+        #             "Missing required AWS environment variables: AWS_ACCESS_KEY_ID, "
+        #             "AWS_SECRET_ACCESS_KEY, or AWS_DEFAULT_REGION"
+        #         )
+
+        #     return boto3.client(
+        #         "s3",
+        #         aws_access_key_id=aws_access_key_id,
+        #         aws_secret_access_key=aws_secret_access_key,
+        #         region_name=aws_region
+        #     )
+        return boto3.client("s3")
+
+    def _lazy_load(self):
+        if self.loaded:
+            return
+        logger.info(f"Loading fragment {self.key} from S3")
+        # Check if object exists in S3
+        try:
+            self.s3_client.head_object(Bucket=self.remote_location, Key=self.key)
+        except Exception:
+            logger.info("Fragment does not exist in S3")
+            super()._lazy_load()
+        except Exception as e:
+            logger.exception(f"Unexpected error while checking for fragment in S3: {e}")
+        else:
+            logger.info("Fragment exists in S3, downloading...")
+            os.makedirs(os.path.dirname(self.frame_location), exist_ok=True)
+            self.s3_client.download_file(
+                self.remote_location, self.key, Filename=self.frame_location
+            )
+            super()._lazy_load()
+
+    def sync(self):
+        if not self.dirty:
+            return
+        super().sync()
+        if self.frame.empty:
+            return
+        logger.info(f"Uploading fragment {self.key} to S3")
+        self.s3_client.upload_file(
+            Filename = self.frame_location,
+            Bucket = self.remote_location,
+            #Key = self.bucket_name.format(self.segment_index),
+            Key = f"{self.db_location}/{self.bucket_name.format(self.segment_index)}",
+            Callback=self.upload_progress_callback(
+                self.bucket_name.format(self.segment_index)
+            ),
+        )
+        self.dirty = False
+
+    def upload_progress_callback(self, key):
+        def upload_progress_callback(bytes_transferred):
+            self.bytes_transferred += bytes_transferred
+            logger.debug(
+                "\r{}: {} bytes have been transferred".format(
+                    key, self.bytes_transferred
+                ),
+                end="",
+            )
+
+    def delete_local(self):
+        super().delete()
+
+    def delete_remote(self):
+        try:
+            logger.info(f"Deleting fragment {self.key} from S3")
+            self.s3_client.delete_object(
+                Bucket=self.remote_location,
+                Key=self.key,
+            )
+        except Exception:
+            logger.exception("Failed to delete object from S3")
+
+    def delete(self):
+        super().delete()
+        self.delete_remote()
 
 
 
@@ -438,24 +550,49 @@ class LazyBucket(BaseModel):
 def lambda_handler(event, context):
 
     print(event)
+    # Event Handler
     lake_name = event['lake_name']
-    dimensions = event['dimensions']
-    approx_shards = event['approx_shards']
-    num_hashes = event['num_hashes']
-    bucket_size = event['bucket_size']
-    hyperplanes = 13
-    shard_index = event['shard_index']
+    segment_index = event['segment_index']
     embedding = event['embedding']
+    document = event['document']
     metadata = {"id": "1"}
 
-    # TODO: instantiate a lazy bucket
-    # TODO: append the vector/embedding to the bucket
-    # TODO: if the embedding's corresponding segment is in S3, use that segment
-    # TODO: if the embedding's corresponding segment isn't in S3, 
-    # make the appropriate segment
-    # TODO: save the segment to S3 using the convention '{lake_name}/{segment}'
+    # Initiate Bucket
+    #if lake_name.startswith("s3://"):
+    bucket = S3Bucket(
+        db_location=lake_name,
+        segment_index=segment_index,
+    )
+    # else:
+    #     bucket = LazyBucket(
+    #         db_location=lake_name,
+    #         segment_index=segment_index,
+    #     )
 
+    # Store Embeddings
+    # Will create new segment if segment not exist already
+    uid = bucket.append(
+        #vector = np.array(embedding[0]),
+        vector= np.array(embedding),
+        metadata = metadata,
+        document = document
+    )
 
+    print(uid)
+    # Save embedding on disk
+    bucket.sync()
+    print(f"Number of Vectors: {len(bucket.frame)}")
+    # Delete bucket / segment index
+    # bucket.delete()
 
+# if "__main__" == __name__:
 
-    print("hello world!")
+#     event = {
+#             "lake_name": "vector-lake",
+#             "segment_index": 5,
+#             "approx_shards": 100,
+#             "embedding": np.random.rand(1, 5),
+#             "document": "This is a document"
+#         }
+
+#     lambda_handler(event, context=None)
