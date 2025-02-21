@@ -30,8 +30,6 @@ class LSH:
         return 2**self.num_hashes
 
 
-
-
 def lambda_handler(event, context):
 
     file_name = 'lake_config.json' 
