@@ -4,6 +4,7 @@ import pytz
 import math
 import logging
 import datetime
+import boto3
 import numpy as np
 import pandas as pd
 from math import log2
@@ -13,12 +14,6 @@ from random import random
 from pydantic import BaseModel
 from operator import itemgetter
 from heapq import heapify, heappop, heappush, heapreplace, nlargest, nsmallest
-
-
-try:
-    import boto3
-except ImportError:
-    boto3 = object()
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
@@ -445,38 +440,21 @@ class S3Bucket(LazyBucket):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        #self.remote_location = self.db_location.strip("s3://")
         self.remote_location = BUCKET_NAME
         self.db_location = self.local_storage
 
     @property
+    def lake_name(self):
+        db_l = self.db_location.split("/")[-1]
+        db_l_2 = db_l.split("_")[-1]
+        return db_l_2
+
+    @property
     def local_storage(self):
-        db_location = self.db_location.replace("://", "_")
-        return f"/tmp/embeddings_lake_{db_location}"
+        return f"/tmp/embeddings_lake_{self.db_location}"
 
     @property
     def s3_client(self):
-        # endpoint_url = os.environ.get("LOCALSTACK_ENDPOINT_URL")
-
-        # if endpoint_url:
-        #     return boto3.client("s3", endpoint_url=endpoint_url)
-        # else:
-        #     aws_access_key_id = os.environ.get("AWS_ACCESS_KEY_ID")
-        #     aws_secret_access_key = os.environ.get("AWS_SECRET_ACCESS_KEY")
-        #     aws_region = os.environ.get("AWS_DEFAULT_REGION")
-
-        #     if not all([aws_access_key_id, aws_secret_access_key, aws_region]):
-        #         raise Exception(
-        #             "Missing required AWS environment variables: AWS_ACCESS_KEY_ID, "
-        #             "AWS_SECRET_ACCESS_KEY, or AWS_DEFAULT_REGION"
-        #         )
-
-        #     return boto3.client(
-        #         "s3",
-        #         aws_access_key_id=aws_access_key_id,
-        #         aws_secret_access_key=aws_secret_access_key,
-        #         region_name=aws_region
-        #     )
         return boto3.client("s3")
 
     def _lazy_load(self):
@@ -509,8 +487,7 @@ class S3Bucket(LazyBucket):
         self.s3_client.upload_file(
             Filename = self.frame_location,
             Bucket = self.remote_location,
-            #Key = self.bucket_name.format(self.segment_index),
-            Key = f"{self.db_location}/{self.bucket_name.format(self.segment_index)}",
+            Key = f"{self.lake_name}/{self.bucket_name.format(self.segment_index)}",
             Callback=self.upload_progress_callback(
                 self.bucket_name.format(self.segment_index)
             ),
@@ -563,16 +540,10 @@ def lambda_handler(event, context):
         db_location=lake_name,
         segment_index=segment_index,
     )
-    # else:
-    #     bucket = LazyBucket(
-    #         db_location=lake_name,
-    #         segment_index=segment_index,
-    #     )
 
     # Store Embeddings
     # Will create new segment if segment not exist already
     uid = bucket.append(
-        #vector = np.array(embedding[0]),
         vector= np.array(embedding),
         metadata = metadata,
         document = document
@@ -584,15 +555,3 @@ def lambda_handler(event, context):
     print(f"Number of Vectors: {len(bucket.frame)}")
     # Delete bucket / segment index
     # bucket.delete()
-
-# if "__main__" == __name__:
-
-#     event = {
-#             "lake_name": "vector-lake",
-#             "segment_index": 5,
-#             "approx_shards": 100,
-#             "embedding": np.random.rand(1, 5),
-#             "document": "This is a document"
-#         }
-
-#     lambda_handler(event, context=None)
