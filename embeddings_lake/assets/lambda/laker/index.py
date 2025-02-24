@@ -34,6 +34,8 @@ def lambda_handler(event, context):
 
     file_name = 'lake_config.json' 
 
+    print("body")
+    #print(event['body'])
     print(event)
     print(event['lake_name'])
     print(event['lake_dimensions'])
