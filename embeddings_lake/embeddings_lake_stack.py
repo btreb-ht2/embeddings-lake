@@ -203,7 +203,7 @@ class EmbeddingsLakeStack(Stack):
 
         lambda_embedding_adjacent = lambda_.Function(
             self,
-            "FunctionEmbeddingQuery",
+            "FunctionEmbeddingAdjacent",
             runtime=lambda_.Runtime.PYTHON_3_10,
             handler="index.lambda_handler",
             code=lambda_.Code.from_asset("embeddings_lake/assets/lambda/adjacent"),
@@ -221,16 +221,6 @@ class EmbeddingsLakeStack(Stack):
             layers=[lambda_layer_pandas, lambda_layer_pydantic]
         )
 
-        lambda_embedding_search = lambda_.Function(
-            self,
-            "FunctionEmbeddingSearch",
-            runtime=lambda_.Runtime.PYTHON_3_10,
-            handler="index.lambda_handler",
-            code=lambda_.Code.from_asset("embeddings_lake/assets/lambda/search"),
-            environment={"BUCKET_NAME": bucket_segments.bucket_name },
-            layers=[lambda_layer_pandas, lambda_layer_pydantic]
-        )
-
         task_embedding_hash = tasks.LambdaInvoke(
             self,
             "Hash Embedding",
@@ -243,9 +233,9 @@ class EmbeddingsLakeStack(Stack):
             lambda_function=lambda_embedding_add,
         )
 
-        task_embedding_query = tasks.LambdaInvoke(
+        task_embedding_adjacents = tasks.LambdaInvoke(
             self,
-            "Query Embedding", 
+            "Get Adjacent Segments", 
             lambda_function=lambda_embedding_adjacent
         )
 
@@ -266,7 +256,7 @@ class EmbeddingsLakeStack(Stack):
         )
 
         choice_embedding.otherwise(
-            task_embedding_query
+            task_embedding_adjacents
         )      
 
         task_embedding_hash.next(choice_embedding)
@@ -281,7 +271,7 @@ class EmbeddingsLakeStack(Stack):
 
         map_search_segments.item_processor(task_embedding_query)
 
-        task_embedding_query.next(map_search_segments)
+        task_embedding_adjacents.next(map_search_segments)
 
         state_machine_embedding = sfn.StateMachine(
             self,
