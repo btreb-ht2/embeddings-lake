@@ -41,27 +41,27 @@ def lambda_handler(event, context):
 
     aprox_shards = event['lake_aprox_shards']
 
-    lsh = LSH(event['lake_dimensions'], int(math_log(aprox_shards, 2) + 0.5))
+    # lsh = LSH(event['lake_dimensions'], int(math_log(aprox_shards, 2) + 0.5))
 
 
-    data = {"lake_name": event['lake_name'],
-            "lake_dimensions": lsh.dim,
-            "lake_shards": lsh.max_partitions,
-            "lake_hyperplanes": lsh.hyperplanes.tolist()
-            }
+    # data = {"lake_name": event['lake_name'],
+    #         "lake_dimensions": lsh.dim,
+    #         "lake_shards": lsh.max_partitions,
+    #         "lake_hyperplanes": lsh.hyperplanes.tolist()
+    #         }
 
-    with tempfile.NamedTemporaryFile(mode='w') as temporary_file:
-        dump(data, temporary_file, indent=4)
-        temporary_file.flush()
+    # with tempfile.NamedTemporaryFile(mode='w') as temporary_file:
+    #     dump(data, temporary_file, indent=4)
+    #     temporary_file.flush()
 
-        upload_file_response = s3_client.upload_file(
-            Filename=temporary_file.name, 
-            Bucket=BUCKET_NAME, 
-            Key=f"{event['lake_name']}/{file_name}"
-            ) 
-        print(upload_file_response)
+    #     upload_file_response = s3_client.upload_file(
+    #         Filename=temporary_file.name, 
+    #         Bucket=BUCKET_NAME, 
+    #         Key=f"{event['lake_name']}/{file_name}"
+    #         ) 
+    #     print(upload_file_response)
     
-    return { 
-        'statusCode': 200, 
-        'body': 'File uploaded successfully.' 
-    }
+    # return { 
+    #     'statusCode': 200, 
+    #     'body': 'File uploaded successfully.' 
+    # }

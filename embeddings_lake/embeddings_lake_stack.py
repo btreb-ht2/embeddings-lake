@@ -141,6 +141,7 @@ class EmbeddingsLakeStack(Stack):
             role_name="EmbeddingsLake_Role_lambda_Lake_Instantiation",
             managed_policies=[
                 policy_lake_instantiate,
+                iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaBasicExecutionRole")
                 ]
             
         )
