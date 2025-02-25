@@ -42,7 +42,8 @@ def lambda_handler(event, context):
 
     print(event)
     lake_name = event['lake_name']
-
+    embedding = event['embedding']
+    add_embedding = event['add']
 
     object = s3_resource.Object(BUCKET_NAME, f"{lake_name}/lake_config.json")
     object_contents = object.get()["Body"].read().decode("utf-8")
@@ -54,7 +55,7 @@ def lambda_handler(event, context):
     hyperplanes = lake_config["lake_hyperplanes"]
     num_shards = lake_config["lake_shards"]
 
-    embedding = event['embedding']
+
 
     metadata = {"id": "1"}
     document = "TODO placeholder for document"
@@ -76,5 +77,5 @@ def lambda_handler(event, context):
         'embedding': embedding,
         'embedding_hash_index': shard_index,
         'num_shards': num_shards,
-        'add': False
+        'add': add_embedding
     }

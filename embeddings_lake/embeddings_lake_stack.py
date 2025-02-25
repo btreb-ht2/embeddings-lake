@@ -122,7 +122,8 @@ class EmbeddingsLakeStack(Stack):
                     iam.PolicyStatement(
                         effect=iam.Effect.ALLOW,
                         actions=[
-                            "s3:GetObject"
+                            "s3:GetObject",
+                            "s3:ListBucket"
                         ],
                         resources=[
                             bucket_segments.bucket_arn,
@@ -153,6 +154,7 @@ class EmbeddingsLakeStack(Stack):
             role_name="EmbeddingsLake_Role_lambda_Embedding_Hash",
             managed_policies=[
                 policy_embedding_hash,
+                iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaBasicExecutionRole")
                 ]
             
         )
@@ -181,7 +183,7 @@ class EmbeddingsLakeStack(Stack):
 
         lambda_embedding_hash = lambda_.Function(
             self,
-            "FunctionHashVector",
+            "FunctionEmbeddingHash",
             runtime=lambda_.Runtime.PYTHON_3_10,
             handler="index.lambda_handler",
             code=lambda_.Code.from_asset("embeddings_lake/assets/lambda/hasher"),
@@ -309,6 +311,16 @@ class EmbeddingsLakeStack(Stack):
             http_method="PUT",
             integration = apigateway.LambdaIntegration(
                     handler = lambda_lake_instantiate,
+                    integration_responses=api_integration_response_list,
+                    proxy=False
+                    ),
+            method_responses=api_method_response_list
+        )
+
+        api_resource_lake_embedding.add_method(
+            http_method="PUT",
+            integration = apigateway.LambdaIntegration(
+                    handler = lambda_embedding_hash,
                     integration_responses=api_integration_response_list,
                     proxy=False
                     ),
