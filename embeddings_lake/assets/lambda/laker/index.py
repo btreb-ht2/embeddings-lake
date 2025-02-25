@@ -36,34 +36,38 @@ def lambda_handler(event, context):
 
     print("body")
     #print(event['body'])
-    print(event)
-    print(event['lake_name'])
-    print(event['lake_dimensions'])
-    print(event['lake_aprox_shards'])
+    # print(event)
+    # print(event['lake_name'])
+    # print(event['lake_dimensions'])
+    # print(event['lake_aprox_shards'])
+    try:
 
-    aprox_shards = event['lake_aprox_shards']
+        aprox_shards = event['lake_aprox_shards']
 
-    lsh = LSH(event['lake_dimensions'], int(math_log(aprox_shards, 2) + 0.5))
+        lsh = LSH(event['lake_dimensions'], int(math_log(aprox_shards, 2) + 0.5))
+        data = {"lake_name": event['lake_name'],
+                "lake_dimensions": lsh.dim,
+                "lake_shards": lsh.max_partitions,
+                "lake_hyperplanes": lsh.hyperplanes.tolist()
+                } 
+        
+        with tempfile.NamedTemporaryFile(mode='w') as temporary_file:
+            dump(data, temporary_file, indent=4)
+            temporary_file.flush()
 
-
-    data = {"lake_name": event['lake_name'],
-            "lake_dimensions": lsh.dim,
-            "lake_shards": lsh.max_partitions,
-            "lake_hyperplanes": lsh.hyperplanes.tolist()
+            s3_client.upload_file(
+                Filename=temporary_file.name, 
+                Bucket=BUCKET_NAME, 
+                Key=f"{event['lake_name']}/{file_name}"
+                ) 
+            
+            return {
+                'statusCode': 200, 
+                'body': "Successfully created lake"
             }
 
-    with tempfile.NamedTemporaryFile(mode='w') as temporary_file:
-        dump(data, temporary_file, indent=4)
-        temporary_file.flush()
-
-        upload_file_response = s3_client.upload_file(
-            Filename=temporary_file.name, 
-            Bucket=BUCKET_NAME, 
-            Key=f"{event['lake_name']}/{file_name}"
-            ) 
-        print(upload_file_response)
-    
-    return { 
-        'statusCode': 200, 
-        'body': 'File uploaded successfully.' 
+    except Exception as e:
+        return { 
+        'statusCode': 500, 
+        'body': str(e)
     }
