@@ -34,12 +34,14 @@ def lambda_handler(event, context):
 
     file_name = 'lake_config.json' 
 
+    print("body")
+    #print(event['body'])
     print(event)
     print(event['lake_name'])
     print(event['lake_dimensions'])
     print(event['lake_aprox_shards'])
 
-    aprox_shards = event['lake_aprox_shards']
+    # aprox_shards = event['lake_aprox_shards']
 
     # lsh = LSH(event['lake_dimensions'], int(math_log(aprox_shards, 2) + 0.5))
 
@@ -61,7 +63,7 @@ def lambda_handler(event, context):
     #         ) 
     #     print(upload_file_response)
     
-    # return { 
-    #     'statusCode': 200, 
-    #     'body': 'File uploaded successfully.' 
-    # }
+    return { 
+        'statusCode': 200, 
+        'body': 'File uploaded successfully.' 
+    }

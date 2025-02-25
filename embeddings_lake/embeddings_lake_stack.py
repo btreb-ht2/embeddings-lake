@@ -288,15 +288,29 @@ class EmbeddingsLakeStack(Stack):
             )
         )
 
+        api_integration_response_list = [
+            apigateway.IntegrationResponse(status_code="200"),
+            apigateway.IntegrationResponse(status_code="400"),
+            apigateway.IntegrationResponse(status_code="500"),
+        ]
+
+        api_method_response_list = [
+            apigateway.MethodResponse(status_code="200"),
+            apigateway.MethodResponse(status_code="400"),
+            apigateway.MethodResponse(status_code="500"),            
+        ]
+
+
         api_resource_lake = api.root.add_resource("lake")
 
         api_resource_lake_embedding = api_resource_lake.add_resource("embedding")
 
         api_resource_lake.add_method(
-            "PUT",
-            apigateway.LambdaIntegration(
-                handler = lambda_lake_instantiate,
-                proxy=True,
-                ),
-
+            http_method="PUT",
+            integration = apigateway.LambdaIntegration(
+                    handler = lambda_lake_instantiate,
+                    integration_responses=api_integration_response_list,
+                    proxy=False
+                    ),
+            method_responses=api_method_response_list
         )
