@@ -528,10 +528,10 @@ def lambda_handler(event, context):
 
     print(event)
     # Event Handler
-    lake_name = event['lake_name']
-    segment_index = event['segment_index']
-    embedding = event['embedding']
-    document = event['document']
+    lake_name = event['Payload']['lake_name']
+    segment_index = event['Payload']['segment_index']
+    embedding = event['Payload']['embedding']
+    document = event['Payload']['document']
     metadata = {"id": "1"}
 
     # Initiate Bucket

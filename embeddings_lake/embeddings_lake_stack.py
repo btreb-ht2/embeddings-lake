@@ -7,6 +7,7 @@ from aws_cdk import (
     aws_stepfunctions as sfn,
     aws_apigateway as apigateway,
     aws_iam as iam,
+    aws_logs as logs,
     BundlingOptions
 )
 from constructs import Construct
@@ -154,6 +155,7 @@ class EmbeddingsLakeStack(Stack):
             role_name="EmbeddingsLake_Role_lambda_Embedding_Hash",
             managed_policies=[
                 policy_embedding_hash,
+                iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaBasicExecutionRole")
                 ]
             
         )
@@ -165,6 +167,7 @@ class EmbeddingsLakeStack(Stack):
             role_name="EmbeddingsLake_Role_lambda_Embedding_Add",
             managed_policies=[
                 policy_embedding_add,
+                iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaBasicExecutionRole")
                 ]
             
         )
@@ -277,7 +280,12 @@ class EmbeddingsLakeStack(Stack):
 
         state_machine_embedding = sfn.StateMachine(
             self,
-            "Embeddings Lake State Machine",
+            id="StateMachineEmbeddingsLake",
+            state_machine_type=sfn.StateMachineType.EXPRESS,
+            logs=sfn.LogOptions(
+                destination=logs.LogGroup(self, "MyLogGroup"),
+                level=sfn.LogLevel.ALL
+            ),
             definition=task_embedding_hash
         )
 
@@ -314,4 +322,17 @@ class EmbeddingsLakeStack(Stack):
                     proxy=False
                     ),
             method_responses=api_method_response_list
+        )
+
+        api_resource_lake_embedding.add_method(
+            http_method="PUT",
+            # integration = apigateway.LambdaIntegration(
+            #         handler = lambda_embedding_hash,
+            #         integration_responses=api_integration_response_list,
+            #         proxy=False
+            #         ),
+            # method_responses=api_method_response_list
+            integration = apigateway.StepFunctionsIntegration.start_execution(
+                state_machine=state_machine_embedding
+                )
         )

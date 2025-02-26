@@ -34,9 +34,9 @@ def vector_router(vector: np_array, hyperplanes) -> int:
 def lambda_handler(event, context):
 
     print(event)
-    lake_name = event['lake_name']
-    embedding = event['embedding']
-    add_embedding = event['add']
+    lake_name = event['body']['lake_name']
+    embedding = event['body']['embedding']
+    add_embedding = event['body']['add']
 
     object = s3_resource.Object(BUCKET_NAME, f"{lake_name}/lake_config.json")
     object_contents = object.get()["Body"].read().decode("utf-8")
@@ -48,7 +48,6 @@ def lambda_handler(event, context):
     hyperplanes = lake_config["lake_hyperplanes"]
     num_shards = lake_config["lake_shards"]
 
-    metadata = {"id": "1"}
     document = "TODO placeholder for document"
 
     shard_index = vector_router(np_array(embedding), hyperplanes)
@@ -56,9 +55,12 @@ def lambda_handler(event, context):
     print(f"shard index: {shard_index}")
     return { 
         'statusCode': 200, 
-        'body': 'Success',
+        #'body': 'Success',
+        'lake_name': lake_name,
         'embedding': embedding,
-        'embedding_hash_index': shard_index,
+        #'embedding_hash_index': shard_index,
+        'segment_index': shard_index,
         'num_shards': num_shards,
-        'add': add_embedding
+        'add': add_embedding,
+        'document': document
     }
