@@ -122,7 +122,8 @@ class EmbeddingsLakeStack(Stack):
                     iam.PolicyStatement(
                         effect=iam.Effect.ALLOW,
                         actions=[
-                            "s3:GetObject"
+                            "s3:GetObject",
+                            "s3:ListBucket"
                         ],
                         resources=[
                             bucket_segments.bucket_arn,
@@ -181,12 +182,12 @@ class EmbeddingsLakeStack(Stack):
 
         lambda_embedding_hash = lambda_.Function(
             self,
-            "FunctionHashVector",
+            "FunctionEmbeddingHash",
             runtime=lambda_.Runtime.PYTHON_3_10,
             handler="index.lambda_handler",
             code=lambda_.Code.from_asset("embeddings_lake/assets/lambda/hasher"),
             environment={"BUCKET_NAME": bucket_segments.bucket_name },
-            layers=[lambda_layer_pandas, lambda_layer_pydantic],
+            layers=[lambda_layer_pandas],
             role=role_lambda_embedding_hash
         )
 
