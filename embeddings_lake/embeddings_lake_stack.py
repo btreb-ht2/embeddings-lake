@@ -278,7 +278,8 @@ class EmbeddingsLakeStack(Stack):
 
         state_machine_embedding = sfn.StateMachine(
             self,
-            "Embeddings Lake State Machine",
+            id="Embeddings Lake State Machine",
+            state_machine_type=sfn.StateMachineType.EXPRESS,
             definition=task_embedding_hash
         )
 
@@ -319,10 +320,12 @@ class EmbeddingsLakeStack(Stack):
 
         api_resource_lake_embedding.add_method(
             http_method="PUT",
-            integration = apigateway.LambdaIntegration(
-                    handler = lambda_embedding_hash,
-                    integration_responses=api_integration_response_list,
-                    proxy=False
-                    ),
-            method_responses=api_method_response_list
+            # integration = apigateway.LambdaIntegration(
+            #         handler = lambda_embedding_hash,
+            #         integration_responses=api_integration_response_list,
+            #         proxy=False
+            #         ),
+            # method_responses=api_method_response_list
+            integration = apigateway.StepFunctionsIntegration.start_execution(
+                state_machine=state_machine_embedding)
         )
