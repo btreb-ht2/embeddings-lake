@@ -15,8 +15,9 @@ from pydantic import BaseModel
 from operator import itemgetter
 from heapq import heapify, heappop, heappush, heapreplace, nlargest, nsmallest
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger()
+#logging.basicConfig(level=logging.DEBUG)
+logger.setLevel(level=logging.INFO)
 
 BUCKET_NAME = os.environ['BUCKET_NAME']
 
@@ -386,6 +387,14 @@ class LazyBucket(BaseModel):
         self.dirty = True
 
         return uid
+    
+    def search(self, vector: np.ndarray, k: int = 4):
+        self._lazy_load()
+        try:
+            results = self.hnsw.search(vector, k)
+        except ValueError:  # Empty graph
+            return []
+        return results
 
     def sync(self, **attrs):
         if not self.dirty:
@@ -460,10 +469,13 @@ class S3Bucket(LazyBucket):
     def _lazy_load(self):
         if self.loaded:
             return
-        logger.info(f"Loading fragment {self.key} from S3")
+        key = f"{self.lake_name}/{self.key}"
+        logger.info(f"Loading fragment {self.remote_location}/{key} from S3")
         # Check if object exists in S3
         try:
-            self.s3_client.head_object(Bucket=self.remote_location, Key=self.key)
+            response = self.s3_client.head_object(Bucket=self.remote_location, Key=key)
+            #response = self.s3_client.get_object(Bucket=self.remote_location, Key=key)
+            logger.debug(response)
         except Exception:
             logger.info("Fragment does not exist in S3")
             super()._lazy_load()
@@ -473,7 +485,7 @@ class S3Bucket(LazyBucket):
             logger.info("Fragment exists in S3, downloading...")
             os.makedirs(os.path.dirname(self.frame_location), exist_ok=True)
             self.s3_client.download_file(
-                self.remote_location, self.key, Filename=self.frame_location
+                self.remote_location, key, Filename=self.frame_location
             )
             super()._lazy_load()
 
@@ -521,7 +533,25 @@ class S3Bucket(LazyBucket):
         super().delete()
         self.delete_remote()
 
+def query(bucket, search_vector, top_k):
 
+    results = []
+    # Search the bucket
+    closest_indices_d = bucket.search(search_vector, k=top_k)
+    # Load the dirty rows
+    bucket.frame["vector"] = bucket.frame["vector"].apply(lambda x: x.tolist() if isinstance(x, np.ndarray) else x)
+    dirty_rows = bucket.frame.to_dict(orient="records")
+    # Save both distance value and idx together
+    for idx, distance in closest_indices_d:
+        results.append((
+            distance,
+            dirty_rows[idx]
+        ))
+    # Remove Duplicates and Sort based on the distance
+    results.sort(key=lambda x: x[0])
+    unique_results = list({row["id"]: {**row, "distance":float(dist)} for dist, row in results}.values())
+    vectors_ret = [result["vector"] for result in unique_results]
+    return unique_results, vectors_ret
 
 
 def lambda_handler(event, context):
@@ -530,9 +560,8 @@ def lambda_handler(event, context):
     # Event Handler
     lake_name = event['lake_name']
     segment_index = event['segment_index']
-    embedding = event['embedding']
-    document = event['document']
-    metadata = {"id": "1"}
+    search_embedding = event['embedding']
+    top_k = 4
 
     # Initiate Bucket
     #if lake_name.startswith("s3://"):
@@ -541,8 +570,9 @@ def lambda_handler(event, context):
         segment_index=segment_index,
     )
 
-    # Save embedding on disk
-    #bucket.sync()
-    print(f"Number of Vectors: {len(bucket.frame)}")
-    # Delete bucket / segment index
-    # bucket.delete()
+    results, _ = query(bucket, np.array(search_embedding), top_k)
+
+    logger.info(f"Found {len(results)} results")
+    logger.info(f"First result - {results[0]}")
+
+    return results

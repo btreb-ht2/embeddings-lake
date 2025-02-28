@@ -1,5 +1,5 @@
 from aws_cdk import (
-    # Duration,
+    Duration,
     Stack,
     aws_s3 as s3,
     aws_lambda as lambda_,
@@ -135,6 +135,27 @@ class EmbeddingsLakeStack(Stack):
             )
         )
 
+        policy_embedding_query = iam.ManagedPolicy(
+            self,
+            "PolicyLambdaEmbeddingQuery",
+            managed_policy_name="EmbeddingsLake_LambdaEmbeddingQuery",
+            document=iam.PolicyDocument(
+                statements=[
+                    iam.PolicyStatement(
+                        effect=iam.Effect.ALLOW,
+                        actions=[
+                            "s3:GetObject",
+                            "s3:ListBucket"
+                        ],
+                        resources=[
+                            bucket_segments.bucket_arn,
+                            bucket_segments.arn_for_objects("*"),
+                        ],
+                    )
+                ]
+            )
+        )
+
 
         role_lambda_lake_instantiate = iam.Role(
             self,
@@ -167,6 +188,19 @@ class EmbeddingsLakeStack(Stack):
             role_name="EmbeddingsLake_Role_lambda_Embedding_Add",
             managed_policies=[
                 policy_embedding_add,
+                iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaBasicExecutionRole")
+                ]
+            
+        )
+
+
+        role_lambda_embedding_query = iam.Role(
+            self,
+            "RoleLambdaEmbeddingQuery",
+            assumed_by=iam.ServicePrincipal(lambda_endpoint),
+            role_name="EmbeddingsLake_Role_lambda_Embedding_Query",
+            managed_policies=[
+                policy_embedding_query,
                 iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaBasicExecutionRole")
                 ]
             
@@ -220,10 +254,13 @@ class EmbeddingsLakeStack(Stack):
             self,
             "FunctionEmbeddingQuery",
             runtime=lambda_.Runtime.PYTHON_3_10,
+            memory_size=256,
+            timeout=Duration.seconds(30),
             handler="index.lambda_handler",
             code=lambda_.Code.from_asset("embeddings_lake/assets/lambda/query"),
             environment={"BUCKET_NAME": bucket_segments.bucket_name },
-            layers=[lambda_layer_pandas, lambda_layer_pydantic]
+            layers=[lambda_layer_pandas, lambda_layer_pydantic],
+            role=role_lambda_embedding_query
         )
 
         task_embedding_hash = tasks.LambdaInvoke(
