@@ -556,10 +556,10 @@ def query(bucket, search_vector, top_k):
 
 def lambda_handler(event, context):
 
-    print(event)
+    logger.info(event)
     # Event Handler
-    lake_name = event['lake_name']
-    segment_index = event['segment_index']
+    lake_name = event['lakeName']
+    segment_index = event['segmentIndex']
     search_embedding = event['embedding']
     top_k = 4
 

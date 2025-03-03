@@ -278,7 +278,8 @@ class EmbeddingsLakeStack(Stack):
         task_embedding_adjacents = tasks.LambdaInvoke(
             self,
             "Get Adjacent Segments", 
-            lambda_function=lambda_embedding_adjacent
+            lambda_function=lambda_embedding_adjacent,
+
         )
 
         task_embedding_query = tasks.LambdaInvoke(
@@ -308,7 +309,17 @@ class EmbeddingsLakeStack(Stack):
             #items_path=sfn.JsonPath.string_at("$$.Payload.segment_indices"),
             #items_path=sfn.JsonPath.array
             items_path="$.Payload.segmentIndices",
-            #result_path="$.mapOutput",
+            input_path="$",
+            # result_path="$.Payload",
+            # output_path="$.Payload"
+            # # parameters={
+            # #     "Payload.$": "$"
+            # # }
+            parameters = {
+              "segmentIndex.$": "$$.Map.Item.Value",  # The current item in the iteration
+              "embedding.$": "$.Payload.embedding",
+              "lakeName.$": "$.Payload.lakeName",# The rest of the input, passed to Lambda
+            },
         )
 
         map_search_segments.item_processor(task_embedding_query)
@@ -351,6 +362,10 @@ class EmbeddingsLakeStack(Stack):
 
         api_resource_lake_embedding = api_resource_lake.add_resource("embedding")
 
+        api_resource_lake_embedding_add = api_resource_lake_embedding.add_resource("add")
+
+        api_resource_lake_embedding_query = api_resource_lake_embedding.add_resource("query")
+
         api_resource_lake.add_method(
             http_method="PUT",
             integration = apigateway.LambdaIntegration(
@@ -361,7 +376,20 @@ class EmbeddingsLakeStack(Stack):
             method_responses=api_method_response_list
         )
 
-        api_resource_lake_embedding.add_method(
+        api_resource_lake_embedding_add.add_method(
+            http_method="PUT",
+            # integration = apigateway.LambdaIntegration(
+            #         handler = lambda_embedding_hash,
+            #         integration_responses=api_integration_response_list,
+            #         proxy=False
+            #         ),
+            # method_responses=api_method_response_list
+            integration = apigateway.StepFunctionsIntegration.start_execution(
+                state_machine=state_machine_embedding
+                )
+        )
+
+        api_resource_lake_embedding_query.add_method(
             http_method="PUT",
             # integration = apigateway.LambdaIntegration(
             #         handler = lambda_embedding_hash,
