@@ -1,0 +1,32 @@
+{
+    "lakePut": {
+        "lake_name": "testLake0x",
+        "lake_dimensions": 5,
+        "lake_aprox_shards": 100
+      },
+    "embeddingAdd": {
+        "lake_name": "testLake02",
+        "embedding": [
+          0.96327956,
+          0.09878284,
+          0.56721236,
+          0.31885614,
+          0.61301605
+        ],
+        "add": true
+    },
+    "embeddingQuery": {
+        "lake_name": "testLake02",
+        "embedding": [
+          0.96327956,
+          0.09878284,
+          0.56721236,
+          0.31885614,
+          0.61301605
+        ],
+        "add": false
+    }
+
+    
+}
+  
