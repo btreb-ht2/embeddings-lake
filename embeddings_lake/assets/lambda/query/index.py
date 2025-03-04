@@ -472,22 +472,23 @@ class S3Bucket(LazyBucket):
         key = f"{self.lake_name}/{self.key}"
         logger.info(f"Loading fragment {self.remote_location}/{key} from S3")
         # Check if object exists in S3
-        try:
-            response = self.s3_client.head_object(Bucket=self.remote_location, Key=key)
-            #response = self.s3_client.get_object(Bucket=self.remote_location, Key=key)
-            logger.debug(response)
-        except Exception:
-            logger.info("Fragment does not exist in S3")
-            super()._lazy_load()
-        except Exception as e:
-            logger.exception(f"Unexpected error while checking for fragment in S3: {e}")
-        else:
-            logger.info("Fragment exists in S3, downloading...")
-            os.makedirs(os.path.dirname(self.frame_location), exist_ok=True)
-            self.s3_client.download_file(
-                self.remote_location, key, Filename=self.frame_location
-            )
-            super()._lazy_load()
+        # try:
+        #     response = self.s3_client.head_object(Bucket=self.remote_location, Key=key)
+        #     #response = self.s3_client.get_object(Bucket=self.remote_location, Key=key)
+        #     logger.debug(response)
+        # except Exception:
+        #     logger.info("Fragment does not exist in S3")
+        #     super()._lazy_load()
+        # except Exception as e:
+        #     logger.exception(f"Unexpected error while checking for fragment in S3: {e}")
+        #else:
+        #logger.info("Fragment exists in S3, downloading...")
+        logger.info("Downloading fragment from S3...")
+        os.makedirs(os.path.dirname(self.frame_location), exist_ok=True)
+        self.s3_client.download_file(
+            self.remote_location, key, Filename=self.frame_location
+        )
+        super()._lazy_load()
 
     def sync(self):
         if not self.dirty:

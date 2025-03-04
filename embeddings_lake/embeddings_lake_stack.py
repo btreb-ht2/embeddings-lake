@@ -156,6 +156,27 @@ class EmbeddingsLakeStack(Stack):
             )
         )
 
+        policy_embedding_adjacent = iam.ManagedPolicy(
+            self,
+            "PolicyLambdaEmbeddingAdjacent",
+            managed_policy_name="EmbeddingsLake_LambdaEmbeddingAdjacent",
+            document=iam.PolicyDocument(
+                statements=[
+                    iam.PolicyStatement(
+                        effect=iam.Effect.ALLOW,
+                        actions=[
+                            "s3:GetObject",
+                            "s3:ListBucket"
+                        ],
+                        resources=[
+                            bucket_segments.bucket_arn,
+                            bucket_segments.arn_for_objects("*"),
+                        ],
+                    )
+                ]
+            )
+        )
+
 
         role_lambda_lake_instantiate = iam.Role(
             self,
@@ -188,6 +209,18 @@ class EmbeddingsLakeStack(Stack):
             role_name="EmbeddingsLake_Role_lambda_Embedding_Add",
             managed_policies=[
                 policy_embedding_add,
+                iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaBasicExecutionRole")
+                ]
+            
+        )
+
+        role_lambda_embedding_adjacent = iam.Role(
+            self,
+            "RoleLambdaEmbeddingAdjacent",
+            assumed_by=iam.ServicePrincipal(lambda_endpoint),
+            role_name="EmbeddingsLake_Role_lambda_Embedding_Adjacent",
+            managed_policies=[
+                policy_embedding_adjacent,
                 iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaBasicExecutionRole")
                 ]
             
@@ -247,7 +280,7 @@ class EmbeddingsLakeStack(Stack):
             handler="index.lambda_handler",
             code=lambda_.Code.from_asset("embeddings_lake/assets/lambda/adjacent"),
             environment={"BUCKET_NAME": bucket_segments.bucket_name },
-            layers=[lambda_layer_pandas, lambda_layer_pydantic]
+            role=role_lambda_embedding_adjacent
         )
 
         lambda_embedding_query = lambda_.Function(
@@ -306,19 +339,12 @@ class EmbeddingsLakeStack(Stack):
 
         map_search_segments = sfn.Map(self, "Query Segments",
             max_concurrency=10,
-            #items_path=sfn.JsonPath.string_at("$$.Payload.segment_indices"),
-            #items_path=sfn.JsonPath.array
             items_path="$.Payload.segmentIndices",
             input_path="$",
-            # result_path="$.Payload",
-            # output_path="$.Payload"
-            # # parameters={
-            # #     "Payload.$": "$"
-            # # }
-            parameters = {
-              "segmentIndex.$": "$$.Map.Item.Value",  # The current item in the iteration
+            parameters = { 
+              "segmentIndex.$": "$$.Map.Item.Value",
               "embedding.$": "$.Payload.embedding",
-              "lakeName.$": "$.Payload.lakeName",# The rest of the input, passed to Lambda
+              "lakeName.$": "$.Payload.lakeName",
             },
         )
 
