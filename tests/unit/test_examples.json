@@ -13,6 +13,8 @@
           0.31885614,
           0.61301605
         ],
+        "metadata": {"file_path": "my/image/path"},
+        "document": "some labels",
         "add": true
     },
     "embeddingQuery": {

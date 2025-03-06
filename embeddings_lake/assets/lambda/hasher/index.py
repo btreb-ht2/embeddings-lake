@@ -2,6 +2,10 @@ from numpy import array as np_array, dot as np_dot, random as np_random
 from boto3 import resource as boto3_resource
 import os
 import json
+import logging
+
+logger = logging.getLogger()
+logger.setLevel(level=logging.INFO)
 
 
 s3_resource = boto3_resource("s3")
@@ -33,34 +37,37 @@ def vector_router(vector: np_array, hyperplanes) -> int:
 
 def lambda_handler(event, context):
 
-    print(event)
+    logger.info(event)
+
     lake_name = event['body']['lake_name']
     embedding = event['body']['embedding']
     add_embedding = event['body']['add']
 
+
     object = s3_resource.Object(BUCKET_NAME, f"{lake_name}/lake_config.json")
     object_contents = object.get()["Body"].read().decode("utf-8")
     lake_config = json.loads(object_contents)
-
-    print(lake_config)
-
-    dimension = lake_config["lake_dimensions"]
+    logger.info(f"Lake config - {lake_config}")
+    
     hyperplanes = lake_config["lake_hyperplanes"]
     num_shards = lake_config["lake_shards"]
-
-    document = "TODO placeholder for document"
-
     shard_index = vector_router(np_array(embedding), hyperplanes)
 
-    print(f"shard index: {shard_index}")
-    return { 
-        'statusCode': 200, 
-        #'body': 'Success',
+    result = { 
         'lake_name': lake_name,
         'embedding': embedding,
-        #'embedding_hash_index': shard_index,
         'segment_index': shard_index,
         'num_shards': num_shards,
         'add': add_embedding,
-        'document': document
     }
+    
+    if add_embedding:
+        document = event['body']['document']
+        metadata = event['body']['metadata']
+        result['document'] = document
+        result['metadata'] = metadata
+    
+    
+    logger.info(result)
+    
+    return result
