@@ -15,8 +15,8 @@ from pydantic import BaseModel
 from operator import itemgetter
 from heapq import heapify, heappop, heappush, heapreplace, nlargest, nsmallest
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger()
+logger.setLevel(level=logging.INFO)
 
 BUCKET_NAME = os.environ['BUCKET_NAME']
 
@@ -522,20 +522,17 @@ class S3Bucket(LazyBucket):
         self.delete_remote()
 
 
-
-
 def lambda_handler(event, context):
 
-    print(event)
-    # Event Handler
+    logger.info(event)
+
     lake_name = event['Payload']['lake_name']
     segment_index = event['Payload']['segment_index']
     embedding = event['Payload']['embedding']
     document = event['Payload']['document']
-    metadata = {"id": "1"}
+    metadata = event['Payload']['metadata']
 
     # Initiate Bucket
-    #if lake_name.startswith("s3://"):
     bucket = S3Bucket(
         db_location=lake_name,
         segment_index=segment_index,
@@ -549,9 +546,9 @@ def lambda_handler(event, context):
         document = document
     )
 
-    print(uid)
+    logger.info(uid)
     # Save embedding on disk
     bucket.sync()
-    print(f"Number of Vectors: {len(bucket.frame)}")
+    logger.info(f"Number of Vectors: {len(bucket.frame)}")
     # Delete bucket / segment index
     # bucket.delete()
