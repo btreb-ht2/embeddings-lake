@@ -1,7 +1,6 @@
 import os
 import uuid
 import pytz
-import math
 import logging
 import datetime
 import boto3
