@@ -66,7 +66,8 @@ def lambda_handler(event, context):
         metadata = event['body']['metadata']
         result['document'] = document
         result['metadata'] = metadata
-    
+    else:
+        result['radius'] = event['body']['radius']
     
     logger.info(result)
     
