@@ -1,7 +1,6 @@
 import os
 import uuid
 import pytz
-import math
 import logging
 import datetime
 import boto3
@@ -551,8 +550,14 @@ def query(bucket, search_vector, top_k):
     # Remove Duplicates and Sort based on the distance
     results.sort(key=lambda x: x[0])
     unique_results = list({row["id"]: {**row, "distance":float(dist)} for dist, row in results}.values())
-    vectors_ret = [result["vector"] for result in unique_results]
-    return unique_results, vectors_ret
+
+    for r in unique_results:
+
+        logger.debug(f"r - {r}")
+        del r['vector']
+
+    #vectors_ret = [result["vector"] for result in unique_results]
+    return unique_results#, vectors_ret
 
 
 def lambda_handler(event, context):
@@ -571,7 +576,8 @@ def lambda_handler(event, context):
         segment_index=segment_index,
     )
 
-    results, _ = query(bucket, np.array(search_embedding), top_k)
+    #results, _ = query(bucket, np.array(search_embedding), top_k)
+    results = query(bucket, np.array(search_embedding), top_k)
 
     logger.info(f"Found {len(results)} results")
     logger.info(f"First result - {results[0]}")

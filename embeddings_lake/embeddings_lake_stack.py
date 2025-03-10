@@ -239,6 +239,17 @@ class EmbeddingsLakeStack(Stack):
             
         )
 
+        role_lambda_embedding_sort = iam.Role(
+            self,
+            "RoleLambdaEmbeddingSort",
+            assumed_by=iam.ServicePrincipal(lambda_endpoint),
+            role_name="EmbeddingsLake_Role_lambda_Embedding_Sort",
+            managed_policies=[
+                iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaBasicExecutionRole")
+                ]
+            
+        )
+
         lambda_lake_instantiate = lambda_.Function(
             self,
             "FunctionInstantiateLake",
@@ -288,13 +299,26 @@ class EmbeddingsLakeStack(Stack):
             self,
             "FunctionEmbeddingQuery",
             runtime=lambda_.Runtime.PYTHON_3_10,
-            memory_size=256,
+            memory_size=1024,
             timeout=Duration.seconds(30),
             handler="index.lambda_handler",
             code=lambda_.Code.from_asset("embeddings_lake/assets/lambda/query"),
             environment={"BUCKET_NAME": bucket_segments.bucket_name },
             layers=[lambda_layer_pandas, lambda_layer_pydantic],
             role=role_lambda_embedding_query
+        )
+
+        lambda_embedding_sort = lambda_.Function(
+            self,
+            "FunctionEmbeddingSort",
+            runtime=lambda_.Runtime.PYTHON_3_10,
+            memory_size=256,
+            timeout=Duration.seconds(30),
+            handler="index.lambda_handler",
+            code=lambda_.Code.from_asset("embeddings_lake/assets/lambda/sort"),
+            environment={"BUCKET_NAME": bucket_segments.bucket_name },
+            #layers=[lambda_layer_pandas, lambda_layer_pydantic],
+            role=role_lambda_embedding_sort
         )
 
         task_embedding_hash = tasks.LambdaInvoke(
@@ -318,8 +342,14 @@ class EmbeddingsLakeStack(Stack):
 
         task_embedding_query = tasks.LambdaInvoke(
             self,
-            "Search Segment",
+            "Search Segments",
             lambda_function=lambda_embedding_query
+        )
+
+        task_embedding_sort = tasks.LambdaInvoke(
+            self,
+            "Sort Segments",
+            lambda_function=lambda_embedding_sort
         )
 
         choice_embedding = sfn.Choice(
@@ -352,6 +382,8 @@ class EmbeddingsLakeStack(Stack):
         map_search_segments.item_processor(task_embedding_query)
 
         task_embedding_adjacents.next(map_search_segments)
+
+        map_search_segments.next(task_embedding_sort)
 
         state_machine_embedding = sfn.StateMachine(
             self,
