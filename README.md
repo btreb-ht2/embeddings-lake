@@ -1,9 +1,9 @@
 
-# Welcome to your CDK Python project!
+# Embeddings Lake
 
-This is a blank project for CDK development with Python.
+This project uses CDK development with Python.
 
-The `cdk.json` file tells the CDK Toolkit how to execute your app.
+The `cdk.json` file tells the CDK Toolkit how to execute the app.
 
 This project is set up like a standard Python project.  The initialization
 process also creates a virtualenv within this project, stored under the `.venv`
@@ -12,7 +12,19 @@ directory.  To create the virtualenv it assumes that there is a `python3`
 package. If for any reason the automatic creation of the virtualenv fails,
 you can create the virtualenv manually.
 
-To manually create a virtualenv on MacOS and Linux:
+To deploy this app, you need an AWS account and environment to deploy to. 
+
+Once you have the account set up clone this repo your local machine. 
+
+```
+git clone https://github.com/btreb-ht2/embeddings-lake.git
+```
+
+```
+cd embeddings-lake
+```
+
+Create a virtualenv on MacOS and Linux:
 
 ```
 $ python3 -m venv .venv
@@ -41,6 +53,15 @@ At this point you can now synthesize the CloudFormation template for this code.
 
 ```
 $ cdk synth
+```
+
+Deploy the application to your cloud environment
+```
+cdk deploy
+```
+You can test the deployed API using the example json content in 
+```
+tests/unit/test_examples.json
 ```
 
 To add additional dependencies, for example other CDK libraries, just add
