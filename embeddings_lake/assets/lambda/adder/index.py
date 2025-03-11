@@ -531,6 +531,13 @@ def lambda_handler(event, context):
     document = event['Payload']['document']
     metadata = event['Payload']['metadata']
 
+    result = {
+        'lakeName': lake_name,
+        'document': document,
+        'metadata': metadata,
+        'segmentIndex': segment_index 
+    }
+
     # Initiate Bucket
     bucket = S3Bucket(
         db_location=lake_name,
@@ -547,7 +554,16 @@ def lambda_handler(event, context):
 
     logger.info(uid)
     # Save embedding on disk
-    bucket.sync()
+    
+    
+    try:
+        bucket.sync()
+        result['success'] = True
+    except:
+        result['success'] = False
+        logger.error("Failed to add embedding")
     logger.info(f"Number of Vectors: {len(bucket.frame)}")
     # Delete bucket / segment index
     # bucket.delete()
+
+    return result
