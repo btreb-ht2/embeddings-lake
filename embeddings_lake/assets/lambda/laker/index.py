@@ -4,6 +4,10 @@ from json import dump
 from boto3 import client as boto3_client
 from numpy import random as np_random
 from math import log as math_log
+import logging
+
+logger = logging.getLogger()
+logger.setLevel(level=logging.INFO)
 
 
 s3_client = boto3_client("s3")
@@ -31,17 +35,11 @@ class LSH:
 
 
 def lambda_handler(event, context):
-
+    
+    logger.info(event)
     file_name = 'lake_config.json' 
 
-    print("body")
-    #print(event['body'])
-    # print(event)
-    # print(event['lake_name'])
-    # print(event['lake_dimensions'])
-    # print(event['lake_aprox_shards'])
     try:
-
         aprox_shards = event['lake_aprox_shards']
 
         lsh = LSH(event['lake_dimensions'], int(math_log(aprox_shards, 2) + 0.5))

@@ -6,6 +6,7 @@ from aws_cdk import (
     aws_stepfunctions_tasks as tasks,
     aws_stepfunctions as sfn,
     aws_apigateway as apigateway,
+    aws_dynamodb as dynamodb,
     aws_iam as iam,
     aws_logs as logs,
     BundlingOptions
@@ -27,6 +28,20 @@ class EmbeddingsLakeStack(Stack):
             object_ownership=s3.ObjectOwnership.BUCKET_OWNER_ENFORCED,
             block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
         )
+
+        table_embeddings = dynamodb.TableV2(
+            self,
+            id="TableEmbeddings",
+            partition_key=dynamodb.Attribute(
+                name="lakeName",
+                type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="filePath",
+                type=dynamodb.AttributeType.STRING
+            )
+        )
+
 
         # layer_bundling_command = (
         #     "pip install -r requirements.txt "
@@ -108,6 +123,27 @@ class EmbeddingsLakeStack(Stack):
                         resources=[
                             bucket_segments.bucket_arn,
                             bucket_segments.arn_for_objects("*"),
+                        ],
+                    )
+                ]
+            )
+        )
+
+        policy_embedding_table = iam.ManagedPolicy(
+            self,
+            "PolicyLambdaEmbeddingTable",
+            managed_policy_name="EmbeddingsLake_LambdaEmbeddingTable",
+            document=iam.PolicyDocument(
+                statements=[
+                    iam.PolicyStatement(
+                        effect=iam.Effect.ALLOW,
+                        actions=[
+                            "dynamodb:PutItem",
+                            "dynamodb:UpdateItem",
+                            "dynamodb:BatchWriteItem"
+                        ],
+                        resources=[
+                            table_embeddings.table_arn
                         ],
                     )
                 ]
@@ -214,6 +250,19 @@ class EmbeddingsLakeStack(Stack):
             
         )
 
+        role_lambda_embedding_table = iam.Role(
+            self,
+            "RoleLambdaEmbeddingTable",
+            assumed_by=iam.ServicePrincipal(lambda_endpoint),
+            role_name="EmbeddingsLake_Role_lambda_Embedding_Table",
+            managed_policies=[
+                policy_embedding_table,
+                iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaBasicExecutionRole")
+                ]
+            
+        )
+
+
         role_lambda_embedding_adjacent = iam.Role(
             self,
             "RoleLambdaEmbeddingAdjacent",
@@ -285,6 +334,19 @@ class EmbeddingsLakeStack(Stack):
             role=role_lambda_embedding_add
         )
 
+        lambda_embedding_table = lambda_.Function(
+            self,
+            "FunctionEmbeddingTable",
+            runtime=lambda_.Runtime.PYTHON_3_10,
+            memory_size=1024,
+            timeout=Duration.minutes(10),
+            handler="index.lambda_handler",
+            code=lambda_.Code.from_asset("embeddings_lake/assets/lambda/tabler"),
+            environment={"TABLE_NAME": table_embeddings.table_name},
+            #layers=[lambda_layer_pandas, lambda_layer_pydantic],
+            role=role_lambda_embedding_table
+        )
+
         lambda_embedding_adjacent = lambda_.Function(
             self,
             "FunctionEmbeddingAdjacent",
@@ -333,6 +395,14 @@ class EmbeddingsLakeStack(Stack):
             lambda_function=lambda_embedding_add,
         )
 
+        task_embedding_table = tasks.LambdaInvoke(
+            self,
+            "Table Embedding",
+            lambda_function=lambda_embedding_table,
+        )
+
+
+
         task_embedding_adjacents = tasks.LambdaInvoke(
             self,
             "Get Adjacent Segments", 
@@ -361,6 +431,8 @@ class EmbeddingsLakeStack(Stack):
             condition=sfn.Condition.boolean_equals(variable="$.Payload.add", value=True),
             next=task_embedding_add
         )
+
+        task_embedding_add.next(task_embedding_table)
 
         choice_embedding.otherwise(
             task_embedding_adjacents

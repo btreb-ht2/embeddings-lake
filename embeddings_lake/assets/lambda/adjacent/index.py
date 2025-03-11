@@ -31,10 +31,11 @@ def get_adjacent_segments(lake_name, segment_value, num_shards, radius, segments
     for delta in range(-radius, radius+1):
         logger.info(f"delta: {delta}")
         candidate_index = delta+hash_index
-        logger.info(f"candidate_index: {candidate_index}")
+        #logger.info(f"candidate_index: {candidate_index}")
         try:
             candidate_segment = segments_in_bucket[candidate_index]
             candidate_key = f"{lake_name}/segment-{candidate_segment}.parquet"
+            logger.info(candidate_key)
         except IndexError:
             logger.info("No adjacent segment available.")          
         try:
