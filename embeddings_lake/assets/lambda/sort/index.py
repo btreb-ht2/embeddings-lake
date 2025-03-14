@@ -4,7 +4,7 @@ import logging
 
 logger = logging.getLogger()
 #logging.basicConfig(level=logging.DEBUG)
-logger.setLevel(level=logging.INFO)
+logger.setLevel(level=logging.ERROR)
 
 BUCKET_NAME = os.environ['BUCKET_NAME']
 
