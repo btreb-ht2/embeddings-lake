@@ -15,7 +15,8 @@ from operator import itemgetter
 from heapq import heapify, heappop, heappush, heapreplace, nlargest, nsmallest
 
 logger = logging.getLogger()
-logger.setLevel(level=logging.INFO)
+logger.setLevel(level=logging.ERROR)
+
 
 BUCKET_NAME = os.environ['BUCKET_NAME']
 
@@ -353,13 +354,16 @@ class LazyBucket(BaseModel):
 
     def _lazy_load(self):
         if self.loaded:
+            logger.info("_lazy_load() loaded")
             return
 
         if os.path.exists(self.frame_location):
             self.frame = pd.read_parquet(self.frame_location)
+            logger.info("os path exists. Frame read")
         else:
             self.frame = pd.DataFrame(columns=self.frame_schema)
             self.attrs = self.frame.attrs
+            logger.info("os path doesn't exist. New frame.")
         if list(self.frame.columns) != self.frame_schema:
             raise ValueError(f"Invalid frame_schema {self.frame.columns=}")
         
@@ -369,8 +373,9 @@ class LazyBucket(BaseModel):
 
     def append(self, vector: np.ndarray, **attrs):
         if not self.loaded:
+            logger.info("Lazy bucket not loaded")
             self._lazy_load()
-
+            logger.info("Lazy bucket loaded")
         uid = uuid.uuid1().urn
 
         document = {
@@ -460,20 +465,30 @@ class S3Bucket(LazyBucket):
         if self.loaded:
             return
         logger.info(f"Loading fragment {self.key} from S3")
+        logger.info(f"Loading fragment {self.lake_name}/{self.bucket_name.format(self.segment_index)} from S3")
+        logger.info(f"Loading fragment {self.frame_location} from S3")
+        s3_object_key = f"{self.lake_name}/{self.key}"
+        logger.info(f"s3_object_key: {s3_object_key}")
         # Check if object exists in S3
         try:
-            self.s3_client.head_object(Bucket=self.remote_location, Key=self.key)
+            self.s3_client.head_object(
+                Bucket=self.remote_location,
+                Key=s3_object_key
+                )
         except Exception:
-            logger.info("Fragment does not exist in S3")
+            logger.info(f"Fragment {s3_object_key} does not exist in S3")
             super()._lazy_load()
-        except Exception as e:
-            logger.exception(f"Unexpected error while checking for fragment in S3: {e}")
+        # except Exception as e:
+        #     logger.exception(f"Unexpected error while checking for fragment in S3: {e}")
         else:
             logger.info("Fragment exists in S3, downloading...")
             os.makedirs(os.path.dirname(self.frame_location), exist_ok=True)
-            self.s3_client.download_file(
-                self.remote_location, self.key, Filename=self.frame_location
+            result = self.s3_client.download_file(
+                Bucket=self.remote_location,
+                Key =s3_object_key,
+                Filename=self.frame_location
             )
+            logger.info(f"Download fragment result - {result}")
             super()._lazy_load()
 
     def sync(self):
@@ -483,7 +498,7 @@ class S3Bucket(LazyBucket):
         if self.frame.empty:
             return
         logger.info(f"Uploading fragment {self.key} to S3")
-        self.s3_client.upload_file(
+        result = self.s3_client.upload_file(
             Filename = self.frame_location,
             Bucket = self.remote_location,
             Key = f"{self.lake_name}/{self.bucket_name.format(self.segment_index)}",
@@ -491,6 +506,7 @@ class S3Bucket(LazyBucket):
                 self.bucket_name.format(self.segment_index)
             ),
         )
+        logger.info(f"sync result - {result}")
         self.dirty = False
 
     def upload_progress_callback(self, key):
@@ -523,6 +539,12 @@ class S3Bucket(LazyBucket):
 
 def lambda_handler(event, context):
 
+
+    # if 'possum' in event['Payload']['metadata']['file_path'] and event['Payload']['segment_index']==16:
+    #     logger.setLevel(level=logging.INFO)
+    # else:
+    #     logger.setLevel(level=logging.ERROR)
+
     logger.info(event)
 
     lake_name = event['Payload']['lake_name']
@@ -552,7 +574,7 @@ def lambda_handler(event, context):
         document = document
     )
 
-    logger.info(uid)
+    #logger.info(uid)
     # Save embedding on disk
     
     

@@ -118,7 +118,9 @@ class EmbeddingsLakeStack(Stack):
                     iam.PolicyStatement(
                         effect=iam.Effect.ALLOW,
                         actions=[
-                            "s3:PutObject"
+                            "s3:PutObject",
+                            "s3:HeadObject",
+                            "s3:GetObject",
                         ],
                         resources=[
                             bucket_segments.bucket_arn,

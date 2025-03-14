@@ -16,7 +16,7 @@ from heapq import heapify, heappop, heappush, heapreplace, nlargest, nsmallest
 
 logger = logging.getLogger()
 #logging.basicConfig(level=logging.DEBUG)
-logger.setLevel(level=logging.INFO)
+logger.setLevel(level=logging.ERROR)
 
 BUCKET_NAME = os.environ['BUCKET_NAME']
 
@@ -538,6 +538,8 @@ def query(bucket, search_vector, top_k):
     results = []
     # Search the bucket
     closest_indices_d = bucket.search(search_vector, k=top_k)
+    logger.info("closest_indices_d")
+    logger.info(closest_indices_d)
     # Load the dirty rows
     bucket.frame["vector"] = bucket.frame["vector"].apply(lambda x: x.tolist() if isinstance(x, np.ndarray) else x)
     dirty_rows = bucket.frame.to_dict(orient="records")
@@ -547,6 +549,8 @@ def query(bucket, search_vector, top_k):
             distance,
             dirty_rows[idx]
         ))
+        logger.info("distance, dirty row")
+        logger.info(f"{distance}, {dirty_rows[idx]['metadata']['file_path']}")
     # Remove Duplicates and Sort based on the distance
     results.sort(key=lambda x: x[0])
     unique_results = list({row["id"]: {**row, "distance":float(dist)} for dist, row in results}.values())
@@ -555,6 +559,9 @@ def query(bucket, search_vector, top_k):
 
         logger.debug(f"r - {r}")
         del r['vector']
+    
+    logger.info("unique results sans vectors")
+    logger.info(unique_results)
 
     #vectors_ret = [result["vector"] for result in unique_results]
     return unique_results#, vectors_ret
@@ -562,7 +569,7 @@ def query(bucket, search_vector, top_k):
 
 def lambda_handler(event, context):
 
-    logger.info(event)
+    logger.info(event['segmentIndex'])
     # Event Handler
     lake_name = event['lakeName']
     segment_index = event['segmentIndex']
@@ -580,6 +587,6 @@ def lambda_handler(event, context):
     results = query(bucket, np.array(search_embedding), top_k)
 
     logger.info(f"Found {len(results)} results")
-    logger.info(f"First result - {results[0]}")
+    logger.debug(f"First result - {results[0]}")
 
     return results
