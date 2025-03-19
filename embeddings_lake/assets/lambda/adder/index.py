@@ -7,7 +7,7 @@ import boto3
 import numpy as np
 import pandas as pd
 from math import log2
-from json import dumps
+import json
 from typing import Any
 from random import random
 from pydantic import BaseModel
@@ -15,7 +15,7 @@ from operator import itemgetter
 from heapq import heapify, heappop, heappush, heapreplace, nlargest, nsmallest
 
 logger = logging.getLogger()
-logger.setLevel(level=logging.ERROR)
+logger.setLevel(level=logging.INFO)
 
 
 BUCKET_NAME = os.environ['BUCKET_NAME']
@@ -400,7 +400,7 @@ class LazyBucket(BaseModel):
         # TODO: eval last sync time
         # self.frame.attrs["last_update"] = datetime.datetime.now(pytz.UTC)
         now_dt = datetime.datetime.now(pytz.UTC)
-        self.frame.attrs["last_update"] = dumps(now_dt, indent=4, sort_keys=True, default=str)
+        self.frame.attrs["last_update"] = json.dumps(now_dt, indent=4, sort_keys=True, default=str)
         for k, v in attrs.items():
             self.frame.attrs[k] = v
 
@@ -540,18 +540,22 @@ class S3Bucket(LazyBucket):
 def lambda_handler(event, context):
 
 
-    # if 'possum' in event['Payload']['metadata']['file_path'] and event['Payload']['segment_index']==16:
+    # if 'possum' in event['body']['metadata']['file_path'] and event['body']['segment_index']==16:
     #     logger.setLevel(level=logging.INFO)
     # else:
     #     logger.setLevel(level=logging.ERROR)
 
-    logger.info(event)
+    logger.info(event['Records'][0]['body'])
 
-    lake_name = event['Payload']['lake_name']
-    segment_index = event['Payload']['segment_index']
-    embedding = event['Payload']['embedding']
-    document = event['Payload']['document']
-    metadata = event['Payload']['metadata']
+    message_body = json.loads(event['Records'][0]['body'])
+
+    logger.info(message_body)
+
+    lake_name = message_body['lake_name']
+    segment_index = message_body['segment_index']
+    embedding = message_body['embedding']
+    document = message_body['document']
+    metadata = message_body['metadata']
 
     result = {
         'lakeName': lake_name,
