@@ -9,6 +9,8 @@ from aws_cdk import (
     aws_dynamodb as dynamodb,
     aws_iam as iam,
     aws_logs as logs,
+    aws_sqs as sqs,
+    aws_lambda_event_sources as lambda_event_sources,
     BundlingOptions
 )
 from constructs import Construct
@@ -40,6 +42,13 @@ class EmbeddingsLakeStack(Stack):
                 name="filePath",
                 type=dynamodb.AttributeType.STRING
             )
+        )
+
+        queue_embeddings_add = sqs.Queue(
+            self,
+            "QueueEmbeddingsAdd",
+            visibility_timeout=Duration.seconds(600),
+            fifo=False,
         )
 
 
@@ -173,6 +182,36 @@ class EmbeddingsLakeStack(Stack):
             )
         )
 
+        policy_embedding_hash_add = iam.ManagedPolicy(
+            self,
+            "PolicyLambdaEmbeddingHashAdd",
+            managed_policy_name="EmbeddingsLake_LambdaEmbeddingHashAdd",
+            document=iam.PolicyDocument(
+                statements=[
+                    iam.PolicyStatement(
+                        effect=iam.Effect.ALLOW,
+                        actions=[
+                            "s3:GetObject",
+                            "s3:ListBucket"
+                        ],
+                        resources=[
+                            bucket_segments.bucket_arn,
+                            bucket_segments.arn_for_objects("*"),
+                        ],
+                    ),
+                    iam.PolicyStatement(
+                        effect=iam.Effect.ALLOW,
+                        actions=[
+                            "sqs:SendMessage"
+                        ],
+                        resources=[
+                            queue_embeddings_add.queue_arn
+                        ],
+                    )
+                ]
+            )
+        )
+
         policy_embedding_query = iam.ManagedPolicy(
             self,
             "PolicyLambdaEmbeddingQuery",
@@ -235,6 +274,18 @@ class EmbeddingsLakeStack(Stack):
             role_name="EmbeddingsLake_Role_lambda_Embedding_Hash",
             managed_policies=[
                 policy_embedding_hash,
+                iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaBasicExecutionRole")
+                ]
+            
+        )
+
+        role_lambda_embedding_hash_add = iam.Role(
+            self,
+            "RoleLambdaEmbeddingHashAdd",
+            assumed_by=iam.ServicePrincipal(lambda_endpoint),
+            role_name="EmbeddingsLake_Role_lambda_Embedding_HashAdd",
+            managed_policies=[
+                policy_embedding_hash_add,
                 iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaBasicExecutionRole")
                 ]
             
@@ -312,9 +363,9 @@ class EmbeddingsLakeStack(Stack):
             role=role_lambda_lake_instantiate
         )
 
-        lambda_embedding_hash = lambda_.Function(
+        lambda_embedding_hash_query = lambda_.Function(
             self,
-            "FunctionEmbeddingHash",
+            "FunctionEmbeddingHashQuery",
             runtime=lambda_.Runtime.PYTHON_3_10,
             handler="index.lambda_handler",
             code=lambda_.Code.from_asset("embeddings_lake/assets/lambda/hasher"),
@@ -323,17 +374,37 @@ class EmbeddingsLakeStack(Stack):
             role=role_lambda_embedding_hash
         )
 
+        lambda_embedding_hash_add = lambda_.Function(
+            self,
+            "FunctionEmbeddingHashAdd",
+            runtime=lambda_.Runtime.PYTHON_3_10,
+            handler="index.lambda_handler",
+            code=lambda_.Code.from_asset("embeddings_lake/assets/lambda/hashAdder"),
+            environment={"BUCKET_NAME": bucket_segments.bucket_name, "QUEUE_URL": queue_embeddings_add.queue_url},
+            layers=[lambda_layer_pandas],
+            role=role_lambda_embedding_hash_add
+        )
+
         lambda_embedding_add = lambda_.Function(
             self,
             "FunctionEmbeddingAdd",
             runtime=lambda_.Runtime.PYTHON_3_10,
             memory_size=1024,
+            reserved_concurrent_executions=1,
             timeout=Duration.minutes(10),
             handler="index.lambda_handler",
             code=lambda_.Code.from_asset("embeddings_lake/assets/lambda/adder"),
             environment={"BUCKET_NAME": bucket_segments.bucket_name },
             layers=[lambda_layer_pandas, lambda_layer_pydantic],
-            role=role_lambda_embedding_add
+            role=role_lambda_embedding_add,
+        )
+
+        lambda_embedding_add.add_event_source(
+            lambda_event_sources.SqsEventSource(
+                queue=queue_embeddings_add,
+                batch_size=1,
+                #max_concurrency=2
+            )
         )
 
         lambda_embedding_table = lambda_.Function(
@@ -388,7 +459,7 @@ class EmbeddingsLakeStack(Stack):
         task_embedding_hash = tasks.LambdaInvoke(
             self,
             "Hash Embedding",
-            lambda_function=lambda_embedding_hash
+            lambda_function=lambda_embedding_hash_query
         )
 
         task_embedding_add = tasks.LambdaInvoke(
@@ -511,15 +582,15 @@ class EmbeddingsLakeStack(Stack):
 
         api_resource_lake_embedding_add.add_method(
             http_method="PUT",
-            # integration = apigateway.LambdaIntegration(
-            #         handler = lambda_embedding_hash,
-            #         integration_responses=api_integration_response_list,
-            #         proxy=False
-            #         ),
-            # method_responses=api_method_response_list
-            integration = apigateway.StepFunctionsIntegration.start_execution(
-                state_machine=state_machine_embedding
-                )
+            integration = apigateway.LambdaIntegration(
+                    handler = lambda_embedding_hash_add,
+                    integration_responses=api_integration_response_list,
+                    proxy=False
+                    ),
+            method_responses=api_method_response_list
+            # integration = apigateway.StepFunctionsIntegration.start_execution(
+            #     state_machine=state_machine_embedding
+            #     )
         )
 
         api_resource_lake_embedding_query.add_method(
