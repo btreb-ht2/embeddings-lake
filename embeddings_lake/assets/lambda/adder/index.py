@@ -354,16 +354,16 @@ class LazyBucket(BaseModel):
 
     def _lazy_load(self):
         if self.loaded:
-            logger.info("_lazy_load() loaded")
+            logger.debug("_lazy_load() loaded")
             return
 
         if os.path.exists(self.frame_location):
             self.frame = pd.read_parquet(self.frame_location)
-            logger.info("os path exists. Frame read")
+            logger.debug("os path exists. Frame read")
         else:
             self.frame = pd.DataFrame(columns=self.frame_schema)
             self.attrs = self.frame.attrs
-            logger.info("os path doesn't exist. New frame.")
+            logger.debug("os path doesn't exist. New frame.")
         if list(self.frame.columns) != self.frame_schema:
             raise ValueError(f"Invalid frame_schema {self.frame.columns=}")
         
@@ -373,9 +373,9 @@ class LazyBucket(BaseModel):
 
     def append(self, vector: np.ndarray, **attrs):
         if not self.loaded:
-            logger.info("Lazy bucket not loaded")
+            logger.debug("Lazy bucket not loaded")
             self._lazy_load()
-            logger.info("Lazy bucket loaded")
+            logger.debug("Lazy bucket loaded")
         uid = uuid.uuid1().urn
 
         document = {
@@ -465,10 +465,10 @@ class S3Bucket(LazyBucket):
         if self.loaded:
             return
         logger.info(f"Loading fragment {self.key} from S3")
-        logger.info(f"Loading fragment {self.lake_name}/{self.bucket_name.format(self.segment_index)} from S3")
-        logger.info(f"Loading fragment {self.frame_location} from S3")
+        logger.debug(f"Loading fragment {self.lake_name}/{self.bucket_name.format(self.segment_index)} from S3")
+        logger.debug(f"Loading fragment {self.frame_location} from S3")
         s3_object_key = f"{self.lake_name}/{self.key}"
-        logger.info(f"s3_object_key: {s3_object_key}")
+        logger.debug(f"s3_object_key: {s3_object_key}")
         # Check if object exists in S3
         try:
             self.s3_client.head_object(
@@ -488,7 +488,7 @@ class S3Bucket(LazyBucket):
                 Key =s3_object_key,
                 Filename=self.frame_location
             )
-            logger.info(f"Download fragment result - {result}")
+            logger.debug(f"Download fragment result - {result}")
             super()._lazy_load()
 
     def sync(self):
@@ -497,7 +497,7 @@ class S3Bucket(LazyBucket):
         super().sync()
         if self.frame.empty:
             return
-        logger.info(f"Uploading fragment {self.key} to S3")
+        logger.debug(f"Uploading fragment {self.key} to S3")
         result = self.s3_client.upload_file(
             Filename = self.frame_location,
             Bucket = self.remote_location,
@@ -506,7 +506,7 @@ class S3Bucket(LazyBucket):
                 self.bucket_name.format(self.segment_index)
             ),
         )
-        logger.info(f"sync result - {result}")
+        logger.debug(f"sync result - {result}")
         self.dirty = False
 
     def upload_progress_callback(self, key):
@@ -524,7 +524,7 @@ class S3Bucket(LazyBucket):
 
     def delete_remote(self):
         try:
-            logger.info(f"Deleting fragment {self.key} from S3")
+            logger.debug(f"Deleting fragment {self.key} from S3")
             self.s3_client.delete_object(
                 Bucket=self.remote_location,
                 Key=self.key,
@@ -545,7 +545,7 @@ def lambda_handler(event, context):
     # else:
     #     logger.setLevel(level=logging.ERROR)
 
-    logger.info(event['Records'][0]['body'])
+    logger.debug(event['Records'][0]['body'])
 
     message_body = json.loads(event['Records'][0]['body'])
 
@@ -578,7 +578,7 @@ def lambda_handler(event, context):
         document = document
     )
 
-    #logger.info(uid)
+    #logger.debug(uid)
     # Save embedding on disk
     
     
@@ -588,7 +588,7 @@ def lambda_handler(event, context):
     except:
         result['success'] = False
         logger.error("Failed to add embedding")
-    logger.info(f"Number of Vectors: {len(bucket.frame)}")
+    logger.debug(f"Number of Vectors: {len(bucket.frame)}")
     # Delete bucket / segment index
     # bucket.delete()
 

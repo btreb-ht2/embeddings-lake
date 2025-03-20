@@ -77,7 +77,7 @@ def lambda_handler(event, context):
         sqs_client.send_message(
             QueueUrl=QUEUE_URL,
             MessageBody=messsage_body,
-            #MessageGroupId=lake_name
+            MessageGroupId=lake_name
         )
 
         return "message sent"
