@@ -48,6 +48,14 @@ class EmbeddingsLakeStack(Stack):
             self,
             "QueueEmbeddingsAdd",
             visibility_timeout=Duration.seconds(600),
+            content_based_deduplication=True,
+            fifo=True,
+        )
+
+        queue_dead_letter_embeddings_add = sqs.Queue(
+            self,
+            "QueueDeadLetterEmbeddingsAdd",
+            visibility_timeout=Duration.seconds(600),
             fifo=False,
         )
 
@@ -397,6 +405,8 @@ class EmbeddingsLakeStack(Stack):
             environment={"BUCKET_NAME": bucket_segments.bucket_name },
             layers=[lambda_layer_pandas, lambda_layer_pydantic],
             role=role_lambda_embedding_add,
+            dead_letter_queue_enabled=True,
+            dead_letter_queue=queue_dead_letter_embeddings_add
         )
 
         lambda_embedding_add.add_event_source(
