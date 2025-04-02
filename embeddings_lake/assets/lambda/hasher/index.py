@@ -50,9 +50,7 @@ def lambda_handler(event, context):
     logger.info(f"Lake config - {lake_config}")
     
     hyperplanes = lake_config["lake_hyperplanes"]
-    logger.info(f"lake hyperplanes - {hyperplanes[0]}, {hyperplanes[1]}")
     num_shards = lake_config["lake_shards"]
-    logger.info(f"lake shards: {num_shards}")
     shard_index = vector_router(np_array(embedding), hyperplanes)
 
     result = { 
