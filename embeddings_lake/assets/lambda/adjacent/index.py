@@ -42,13 +42,13 @@ def get_adjacent_segments(lake_name, segment_value, num_shards, radius, segments
             response = s3_client.head_object(Bucket=BUCKET_NAME, Key=candidate_key)
             segment_indices.append(candidate_segment)
         except Exception:
-            logger.info(f"Fragment {candidate_key} does not exist in S3. Response - {response}")
+            logger.info(f"Fragment {candidate_key} does not exist in S3.")
     return list(set(segment_indices))
 
 
 def lambda_handler(event, context):
 
-    logger.info(event)
+    logger.debug(event)
 
     #n_results: int = 4,
     radius = event['Payload']['radius']
