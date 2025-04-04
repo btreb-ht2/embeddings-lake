@@ -31,18 +31,31 @@ class EmbeddingsLakeStack(Stack):
             block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
         )
 
-        table_embeddings = dynamodb.TableV2(
+        # table_embeddings = dynamodb.TableV2(
+        #     self,
+        #     id="TableEmbeddings",
+        #     partition_key=dynamodb.Attribute(
+        #         name="lakeName",
+        #         type=dynamodb.AttributeType.STRING
+        #     ),
+        #     sort_key=dynamodb.Attribute(
+        #         name="shardIndex",
+        #         type=dynamodb.AttributeType.STRING
+        #     )
+        # )
+        table_entry_points = dynamodb.TableV2(
             self,
-            id="TableEmbeddings",
+            id="TableEntryPoints",
             partition_key=dynamodb.Attribute(
                 name="lakeName",
                 type=dynamodb.AttributeType.STRING
             ),
             sort_key=dynamodb.Attribute(
-                name="filePath",
-                type=dynamodb.AttributeType.STRING
+                name="shardIndex",
+                type=dynamodb.AttributeType.NUMBER
             )
         )
+
 
         queue_embeddings_add = sqs.Queue(
             self,
@@ -159,10 +172,11 @@ class EmbeddingsLakeStack(Stack):
                         actions=[
                             "dynamodb:PutItem",
                             "dynamodb:UpdateItem",
-                            "dynamodb:BatchWriteItem"
+                            "dynamodb:BatchWriteItem",
+                            "dynamodb:GetItem"
                         ],
                         resources=[
-                            table_embeddings.table_arn
+                            table_entry_points.table_arn
                         ],
                     )
                 ]
@@ -306,9 +320,9 @@ class EmbeddingsLakeStack(Stack):
             role_name="EmbeddingsLake_Role_lambda_Embedding_Add",
             managed_policies=[
                 policy_embedding_add,
+                policy_embedding_table,
                 iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaBasicExecutionRole")
-                ]
-            
+                ]    
         )
 
         role_lambda_embedding_table = iam.Role(
@@ -402,7 +416,9 @@ class EmbeddingsLakeStack(Stack):
             timeout=Duration.minutes(10),
             handler="index.lambda_handler",
             code=lambda_.Code.from_asset("embeddings_lake/assets/lambda/adder"),
-            environment={"BUCKET_NAME": bucket_segments.bucket_name },
+            environment={"BUCKET_NAME": bucket_segments.bucket_name,
+                         "TABLE_NAME": table_entry_points.table_name
+                         },
             layers=[lambda_layer_pandas, lambda_layer_pydantic],
             role=role_lambda_embedding_add,
             dead_letter_queue_enabled=True,
@@ -425,7 +441,7 @@ class EmbeddingsLakeStack(Stack):
             timeout=Duration.minutes(10),
             handler="index.lambda_handler",
             code=lambda_.Code.from_asset("embeddings_lake/assets/lambda/tabler"),
-            environment={"TABLE_NAME": table_embeddings.table_name},
+            environment={"TABLE_NAME": table_entry_points.table_name},
             #layers=[lambda_layer_pandas, lambda_layer_pydantic],
             role=role_lambda_embedding_table
         )

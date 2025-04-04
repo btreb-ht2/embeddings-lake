@@ -19,6 +19,11 @@ logger.setLevel(level=logging.INFO)
 
 
 BUCKET_NAME = os.environ['BUCKET_NAME']
+TABLE_NAME = os.environ['TABLE_NAME']
+
+s3_resource = boto3.resource("s3")
+dynamodb_resource = boto3.resource('dynamodb')
+table_resource = dynamodb_resource.Table(TABLE_NAME)
 
 
 DISTANCE_L2 = "l2"
@@ -535,6 +540,15 @@ class S3Bucket(LazyBucket):
     def delete(self):
         super().delete()
         self.delete_remote()
+
+
+def get_entry_point(lake_name, segment_index):
+    entry_point = None
+    response = table_resource.get_item(
+        Key={'lakeName': lake_name, 'shardIndex': segment_index}
+    )
+    return entry_point
+
 
 
 def lambda_handler(event, context):
