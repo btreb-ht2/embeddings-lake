@@ -5,7 +5,7 @@ import json
 import logging
 
 logger = logging.getLogger()
-logger.setLevel(level=logging.ERROR)
+logger.setLevel(level=logging.INFO)
 
 
 s3_resource = boto3_resource("s3")

@@ -13,13 +13,23 @@ s3_client = client("s3")
 
 def get_segments(lake_name):
     segments_in_bucket = []
-    response = s3_client.list_objects_v2(Bucket=BUCKET_NAME, Prefix=lake_name)
+    prefix = lake_name + "/"
+    response = s3_client.list_objects_v2(Bucket=BUCKET_NAME, Prefix=prefix)
+    # TODO: get second batch of second 1,000 objects
+    logger.info("response")
+    logger.info(response)
     for obj in response['Contents']:
         obj_string = obj['Key']
+        #logger.info("obj_string")
+        #logger.info(obj_string)
         match = re.search(r"-(\d+)\.", obj_string)
         if match:
             number = int(match.group(1))
+            #logger.info("number")
+            #logger.info(number)            
             segments_in_bucket.append(number)
+    logger.info("segments_in_bucket presort")
+    logger.info(segments_in_bucket)       
     segments_in_bucket.sort()
     logger.info(segments_in_bucket)
     return segments_in_bucket

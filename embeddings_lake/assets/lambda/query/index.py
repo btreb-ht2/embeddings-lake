@@ -15,8 +15,8 @@ from operator import itemgetter
 from heapq import heapify, heappop, heappush, heapreplace, nlargest, nsmallest
 
 logger = logging.getLogger()
-#logging.basicConfig(level=logging.DEBUG)
-logger.setLevel(level=logging.ERROR)
+logger.setLevel(level=logging.INFO)
+
 
 BUCKET_NAME = os.environ['BUCKET_NAME']
 
@@ -169,6 +169,9 @@ class HNSW:
         graphs = self._graphs
         point = self._enter_point
 
+        logger.info(f"search(q={q}, k={k}, ef={ef})")
+        logger.info(f"point: {point}")
+
         if ef is None:
             ef = self._ef
 
@@ -176,9 +179,13 @@ class HNSW:
             raise ValueError("Empty graph")
 
         dist = distance(q, self.data[point])
+        logger.info(f"dist: {dist}")
         # look for the closest neighbor from the top to the 2nd level
         for layer in reversed(graphs[1:]):
             point, dist = self._search_graph_ef1(q, point, dist, layer)
+        logger.info(f"second level status")
+        logger.info(f"dist: {dist}")
+        logger.info(f"point: {point}")
         # look for ef neighbors in the bottom level
         ep = self._search_graph(q, [(-dist, point)], graphs[0], ef)
 
@@ -354,10 +361,15 @@ class LazyBucket(BaseModel):
 
     def _lazy_load(self):
         if self.loaded:
+            logger.info("Laready exists not gonna read os path")
             return
-
         if os.path.exists(self.frame_location):
+            logger.info("os path exists. Reading frame")
             self.frame = pd.read_parquet(self.frame_location)
+            logger.info("First 3 rows")
+            logger.info(self.frame.iloc[0])
+            logger.info(self.frame.iloc[1])
+            logger.info(self.frame.iloc[2])
         else:
             self.frame = pd.DataFrame(columns=self.frame_schema)
             self.attrs = self.frame.attrs
@@ -393,6 +405,8 @@ class LazyBucket(BaseModel):
             results = self.hnsw.search(vector, k)
         except ValueError:  # Empty graph
             return []
+        print("search()")
+        print(f"results: {results}")
         return results
 
     def sync(self, **attrs):
@@ -487,6 +501,7 @@ class S3Bucket(LazyBucket):
         self.s3_client.download_file(
             self.remote_location, key, Filename=self.frame_location
         )
+        logger.info(f"Downloaded S3 file from {self.remote_location} bucket w/ key {key} to {self.frame_location} ")
         super()._lazy_load()
 
     def sync(self):
