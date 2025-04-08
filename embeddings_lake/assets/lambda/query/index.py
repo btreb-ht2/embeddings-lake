@@ -366,10 +366,8 @@ class LazyBucket(BaseModel):
         if os.path.exists(self.frame_location):
             logger.debug("os path exists. Reading frame")
             self.frame = pd.read_parquet(self.frame_location)
-            logger.debug("First 3 rows")
+            logger.debug("First row")
             logger.debug(self.frame.iloc[0])
-            logger.debug(self.frame.iloc[1])
-            logger.debug(self.frame.iloc[2])
         else:
             self.frame = pd.DataFrame(columns=self.frame_schema)
             self.attrs = self.frame.attrs
