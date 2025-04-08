@@ -9,13 +9,12 @@ import pandas as pd
 from math import log2
 from json import dumps
 from typing import Any
-from random import random
 from pydantic import BaseModel
 from operator import itemgetter
 from heapq import heapify, heappop, heappush, heapreplace, nlargest, nsmallest
 
 logger = logging.getLogger()
-logger.setLevel(level=logging.INFO)
+logger.setLevel(level=logging.ERROR)
 
 
 BUCKET_NAME = os.environ['BUCKET_NAME']
@@ -43,7 +42,7 @@ class HNSW:
     """
 
     def __init__(
-        self, distance_type, m=5, ef=200, m0=None, heuristic=True, vectorized=False
+        self, distance_type, m=5, ef=200, m0=None, heuristic=True, vectorized=False, random_seed=42
     ):
         self.data = []
         if distance_type == DISTANCE_L2:
@@ -69,6 +68,7 @@ class HNSW:
         self._m0 = 2 * m if m0 is None else m0
         self._level_mult = 1 / np.log2(m)
         self._graphs = []
+        np.random.seed(random_seed)
         self._enter_point = None
 
         self._select = self._select_heuristic if heuristic else self._select_naive
@@ -90,7 +90,7 @@ class HNSW:
         m = self._m
 
         # level at which the element will be inserted
-        level = int(-log2(random()) * self._level_mult) + 1
+        level = int(-log2(np.random.rand()) * self._level_mult) + 1
 
         # elem will be at data[idx]
         idx = len(data)
@@ -169,7 +169,7 @@ class HNSW:
         graphs = self._graphs
         point = self._enter_point
 
-        logger.info(f"search(q={q}, k={k}, ef={ef})")
+        logger.info(f"HNSW search()")
         logger.info(f"point: {point}")
 
         if ef is None:
@@ -361,15 +361,15 @@ class LazyBucket(BaseModel):
 
     def _lazy_load(self):
         if self.loaded:
-            logger.info("Laready exists not gonna read os path")
+            logger.debug("Laready exists not gonna read os path")
             return
         if os.path.exists(self.frame_location):
-            logger.info("os path exists. Reading frame")
+            logger.debug("os path exists. Reading frame")
             self.frame = pd.read_parquet(self.frame_location)
-            logger.info("First 3 rows")
-            logger.info(self.frame.iloc[0])
-            logger.info(self.frame.iloc[1])
-            logger.info(self.frame.iloc[2])
+            logger.debug("First 3 rows")
+            logger.debug(self.frame.iloc[0])
+            logger.debug(self.frame.iloc[1])
+            logger.debug(self.frame.iloc[2])
         else:
             self.frame = pd.DataFrame(columns=self.frame_schema)
             self.attrs = self.frame.attrs
@@ -496,12 +496,12 @@ class S3Bucket(LazyBucket):
         #     logger.exception(f"Unexpected error while checking for fragment in S3: {e}")
         #else:
         #logger.info("Fragment exists in S3, downloading...")
-        logger.info("Downloading fragment from S3...")
+        logger.debug("Downloading fragment from S3...")
         os.makedirs(os.path.dirname(self.frame_location), exist_ok=True)
         self.s3_client.download_file(
             self.remote_location, key, Filename=self.frame_location
         )
-        logger.info(f"Downloaded S3 file from {self.remote_location} bucket w/ key {key} to {self.frame_location} ")
+        logger.debug(f"Downloaded S3 file from {self.remote_location} bucket w/ key {key} to {self.frame_location} ")
         super()._lazy_load()
 
     def sync(self):
@@ -553,8 +553,8 @@ def query(bucket, search_vector, top_k):
     results = []
     # Search the bucket
     closest_indices_d = bucket.search(search_vector, k=top_k)
-    logger.info("closest_indices_d")
-    logger.info(closest_indices_d)
+    logger.debug("closest_indices_d")
+    logger.debug(closest_indices_d)
     # Load the dirty rows
     bucket.frame["vector"] = bucket.frame["vector"].apply(lambda x: x.tolist() if isinstance(x, np.ndarray) else x)
     dirty_rows = bucket.frame.to_dict(orient="records")
@@ -564,8 +564,8 @@ def query(bucket, search_vector, top_k):
             distance,
             dirty_rows[idx]
         ))
-        logger.info("distance, dirty row")
-        logger.info(f"{distance}, {dirty_rows[idx]['metadata']['file_path']}")
+        logger.debug("distance, dirty row")
+        logger.debug(f"{distance}, {dirty_rows[idx]['metadata']['file_path']}")
     # Remove Duplicates and Sort based on the distance
     results.sort(key=lambda x: x[0])
     unique_results = list({row["id"]: {**row, "distance":float(dist)} for dist, row in results}.values())
@@ -575,8 +575,8 @@ def query(bucket, search_vector, top_k):
         logger.debug(f"r - {r}")
         del r['vector']
     
-    logger.info("unique results sans vectors")
-    logger.info(unique_results)
+    logger.debug("unique results sans vectors")
+    logger.debug(unique_results)
 
     #vectors_ret = [result["vector"] for result in unique_results]
     return unique_results#, vectors_ret
