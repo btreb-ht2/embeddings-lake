@@ -41,8 +41,15 @@ def get_segments(lake_name):
         
 
 def get_adjacent_segments(lake_name, segment_value, num_shards, radius, segments_in_bucket):
-    hash_index = segments_in_bucket.index(segment_value)
     segment_indices = []
+    try:
+        hash_index = segments_in_bucket.index(segment_value)
+    except ValueError:
+        logger.info(f"Hashed query segment {segment_value} does not have a corresponding shard.")
+        closest_segment = min(segments_in_bucket, key=lambda x: abs(x - segment_value))
+        logger.info(f"Closest segment: {closest_segment}")
+        hash_index = segments_in_bucket.index(closest_segment)
+        logger.info(f"Closest segment hash index: {hash_index}")
     for delta in range(-radius, radius+1):
         logger.info(f"delta: {delta}")
         candidate_index = delta+hash_index
