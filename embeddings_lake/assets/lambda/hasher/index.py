@@ -5,7 +5,7 @@ import json
 import logging
 
 logger = logging.getLogger()
-logger.setLevel(level=logging.INFO)
+logger.setLevel(level=logging.ERROR)
 
 
 s3_resource = boto3_resource("s3")
@@ -68,6 +68,7 @@ def lambda_handler(event, context):
         result['metadata'] = metadata
     else:
         result['radius'] = event['body']['radius']
+        result['distance_metric'] = event['body']['distance_metric']
     
     logger.info(result)
     

@@ -82,6 +82,7 @@ def lambda_handler(event, context):
     embedding = event['Payload']['embedding']
     segment_index = event['Payload']['segment_index']
     num_shards = event["Payload"]['num_shards']
+    distance_metric = event["Payload"]['distance_metric']
 
     segments_in_bucket = get_segments(lake_name=lake_name)
 
@@ -93,6 +94,7 @@ def lambda_handler(event, context):
         'segmentIndices': segments_as_strings,
         'embedding': embedding,
         'lakeName': lake_name,
+        'distanceMetric': distance_metric
     }
 
     logger.info(results)

@@ -532,6 +532,7 @@ class EmbeddingsLakeStack(Stack):
               "segmentIndex.$": "$$.Map.Item.Value",
               "embedding.$": "$.Payload.embedding",
               "lakeName.$": "$.Payload.lakeName",
+              "distanceMetric.$": "$.Payload.distanceMetric"
             },
         )
 
