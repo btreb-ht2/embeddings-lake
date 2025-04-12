@@ -19,7 +19,7 @@ logger.setLevel(level=logging.ERROR)
 
 BUCKET_NAME = os.environ['BUCKET_NAME']
 
-
+DISTANCE_L1 = 'l1'
 DISTANCE_L2 = "l2"
 DISTANCE_COSINE = "cosine"
 
@@ -31,6 +31,10 @@ def cosine_distance(a, b):
     """ https://stackoverflow.com/questions/58381092/difference-between-cosine-similarity-and-cosine-distance """
     
     return (1 - np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
+
+def manhattan_distance(a,b):
+    """https://stackoverflow.com/a/72066779"""
+    return np.sum(np.abs(a - b))
 
 
 class HNSW:
@@ -49,6 +53,9 @@ class HNSW:
             distance_func = l2_distance
         elif distance_type == DISTANCE_COSINE:
             distance_func = cosine_distance
+        elif distance_type == DISTANCE_L1:
+            logger.info(f"distance function: {distance_type} is L1")
+            distance_func = manhattan_distance
         else:
             raise TypeError("Please check your distance type!")
 
@@ -332,6 +339,7 @@ class LazyBucket(BaseModel):
 
     db_location: str
     segment_index: str
+    distance_metric: str
     bucket_name: str = "segment-{}.parquet"
     metadata_name: str = "segment-{}-metadata.json"
     loaded: bool = False
@@ -345,7 +353,7 @@ class LazyBucket(BaseModel):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.hnsw = HNSW("cosine", m0=5, ef=10)
+        self.hnsw = HNSW(self.distance_metric, m0=5, ef=10)
 
     def __repr__(self):
         return f"<{self.__class__.__name__}({self.segment_index=} {len(self.vectors)=} {self.dirty=} {self.loaded=} )>"
@@ -587,6 +595,7 @@ def lambda_handler(event, context):
     lake_name = event['lakeName']
     segment_index = event['segmentIndex']
     search_embedding = event['embedding']
+    distance_metric = event['distanceMetric']
     top_k = 4
 
     # Initiate Bucket
@@ -594,6 +603,7 @@ def lambda_handler(event, context):
     bucket = S3Bucket(
         db_location=lake_name,
         segment_index=segment_index,
+        distance_metric=distance_metric
     )
 
     #results, _ = query(bucket, np.array(search_embedding), top_k)
