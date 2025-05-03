@@ -5,13 +5,13 @@
 
 Embeddings Lake is a cost-efficient, open-source VDBMS optimized for the cloud based on the [Vector Lake](https://github.com/msoedov/vector_lake) VDBMS, but with a few critical improvements:
 
-- Significantly better recall that's comparable to  commercial VDBMS offerings. 
+- Significantly better recall that's comparable to commercial VDBMS offerings
 
-- Migrates both processing and storage to the cloud to circumvent any limitations of local hardware. 
+- Improved query efficiency for rapid information retrieval
+
+- Migrates both processing and storage to the cloud to circumvent any limitations of local hardware
 
 - Fully serverless cloud application that doesn’t require the user to maintain virtualized machinery
-
-- Contains improved query efficiency for rapid information retrieval
 
 
 ## 📦 Installation
