@@ -386,6 +386,7 @@ class EmbeddingsLakeStack(Stack):
             self,
             "FunctionEmbeddingHashAdd",
             runtime=lambda_.Runtime.PYTHON_3_10,
+            memory_size=256,
             handler="index.lambda_handler",
             code=lambda_.Code.from_asset("embeddings_lake/assets/lambda/hashAdder"),
             environment={"BUCKET_NAME": bucket_segments.bucket_name, "QUEUE_URL": queue_embeddings_add.queue_url},
